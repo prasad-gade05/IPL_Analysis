@@ -1515,6 +1515,11 @@ with main_tab_presets:
     st.subheader("Quick Presets")
     st.caption("Click any preset to instantly see results with charts. 50+ pre-built analytics queries organized by category.")
 
+    # Results container at the top — populated after preset click
+    preset_results_container = st.container()
+
+    st.divider()
+
     all_cat_names = ["All Categories"] + list(PRESET_CATEGORIES.keys())
     selected_filter = st.selectbox(
         "Filter by category",
@@ -1543,39 +1548,40 @@ with main_tab_presets:
 
     if preset_clicked and clicked_category:
         preset = cats_to_show[clicked_category][preset_clicked]
-        st.markdown(f"### {preset_clicked}")
-        with st.expander("SQL Query", expanded=False):
-            st.code(preset["sql"].strip(), language="sql")
+        with preset_results_container:
+            st.markdown(f"### {preset_clicked}")
+            with st.expander("SQL Query", expanded=False):
+                st.code(preset["sql"].strip(), language="sql")
 
-        try:
-            preset_df = run_query(preset["sql"])
-            if preset_df.empty:
-                st.info("No results found for this query.")
-            else:
-                if preset["chart"] == "bar" and preset["x"] and preset["y"]:
-                    chart_df = preset_df.sort_values(preset["y"], ascending=True)
-                    fig = px.bar(
-                        chart_df,
-                        x=preset["y"], y=preset["x"],
-                        orientation="h",
-                        title=preset_clicked,
-                        text_auto=True,
+            try:
+                preset_df = run_query(preset["sql"])
+                if preset_df.empty:
+                    st.info("No results found for this query.")
+                else:
+                    if preset["chart"] == "bar" and preset["x"] and preset["y"]:
+                        chart_df = preset_df.sort_values(preset["y"], ascending=True)
+                        fig = px.bar(
+                            chart_df,
+                            x=preset["y"], y=preset["x"],
+                            orientation="h",
+                            title=preset_clicked,
+                            text_auto=True,
+                        )
+                        apply_ipl_style(fig, height=max(400, len(chart_df) * 28))
+                        st.plotly_chart(fig, width='stretch')
+
+                    st.dataframe(preset_df, width='stretch', hide_index=True)
+
+                    csv = preset_df.to_csv(index=False)
+                    st.download_button(
+                        "Download CSV",
+                        csv,
+                        file_name=f"explorer_{preset_clicked.replace(' ', '_').lower()}.csv",
+                        mime="text/csv",
+                        key="preset_download",
                     )
-                    apply_ipl_style(fig, height=max(400, len(chart_df) * 28))
-                    st.plotly_chart(fig, width='stretch')
-
-                st.dataframe(preset_df, width='stretch', hide_index=True)
-
-                csv = preset_df.to_csv(index=False)
-                st.download_button(
-                    "Download CSV",
-                    csv,
-                    file_name=f"explorer_{preset_clicked.replace(' ', '_').lower()}.csv",
-                    mime="text/csv",
-                    key="preset_download",
-                )
-        except Exception as e:
-            st.error(f"Query error: {e}")
+            except Exception as e:
+                st.error(f"Query error: {e}")
 
 
 # ═══════════════════════════════════════════════════════════════════════
