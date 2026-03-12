@@ -79,7 +79,7 @@ def get_view_sample(view_name: str) -> pd.DataFrame:
 # ═══════════════════════════════════════════════════════════════════════
 
 PRESET_CATEGORIES: dict[str, dict[str, dict]] = {
-    "🏏 Batting Legends": {
+    "Batting Legends": {
         "Top 15 All-Time Run Scorers": {
             "sql": """
                 SELECT batter AS Player, SUM(runs) AS Runs, SUM(balls) AS Balls,
@@ -166,7 +166,7 @@ PRESET_CATEGORIES: dict[str, dict[str, dict]] = {
             """, "chart": "bar", "x": "Player", "y": "Sixes",
         },
     },
-    "🎯 Bowling Masters": {
+    "Bowling Masters": {
         "Top 15 All-Time Wicket Takers": {
             "sql": """
                 SELECT bowler AS Bowler, SUM(wickets) AS Wickets,
@@ -247,7 +247,7 @@ PRESET_CATEGORIES: dict[str, dict[str, dict]] = {
             """, "chart": "bar", "x": "Bowler", "y": "Wickets",
         },
     },
-    "🏟️ Venue Intelligence": {
+    "Venue Intelligence": {
         "Highest-Scoring Venues (Avg 1st Inn)": {
             "sql": """
                 SELECT venue AS Venue, COUNT(*) AS Matches,
@@ -299,40 +299,40 @@ PRESET_CATEGORIES: dict[str, dict[str, dict]] = {
             """, "chart": "bar", "x": "Venue", "y": "Toss_Win_Pct",
         },
     },
-    "👥 Head-to-Head Matchups": {
+    "Head-to-Head Matchups": {
         "Most Dominant Batter vs Bowler (min 50 balls)": {
             "sql": """
                 SELECT batter AS Batter, bowler AS Bowler,
-                       total_balls AS Balls, total_runs AS Runs,
-                       ROUND(total_runs*100.0/NULLIF(total_balls,0),2) AS SR,
+                       balls AS Balls, runs AS Runs,
+                       ROUND(runs*100.0/NULLIF(balls,0),2) AS SR,
                        dismissals AS Dismissals,
-                       total_fours AS '4s', total_sixes AS '6s'
-                FROM matchups WHERE total_balls >= 50
+                       fours AS '4s', sixes AS '6s'
+                FROM matchups WHERE balls >= 50
                 ORDER BY SR DESC LIMIT 20
             """, "chart": "bar", "x": "Batter", "y": "SR",
         },
         "Bowler Dominance (most dismissals of a batter)": {
             "sql": """
                 SELECT bowler AS Bowler, batter AS Batter,
-                       dismissals AS Dismissals, total_balls AS Balls,
-                       total_runs AS Runs,
-                       ROUND(total_runs*100.0/NULLIF(total_balls,0),2) AS Batter_SR
+                       dismissals AS Dismissals, balls AS Balls,
+                       runs AS Runs,
+                       ROUND(runs*100.0/NULLIF(balls,0),2) AS Batter_SR
                 FROM matchups WHERE dismissals >= 5
-                ORDER BY Dismissals DESC, total_balls ASC LIMIT 20
+                ORDER BY Dismissals DESC, balls ASC LIMIT 20
             """, "chart": "bar", "x": "Bowler", "y": "Dismissals",
         },
         "Biggest Batter-Bowler Rivalries (most balls)": {
             "sql": """
                 SELECT batter AS Batter, bowler AS Bowler,
-                       total_balls AS Balls, total_runs AS Runs,
+                       balls AS Balls, runs AS Runs,
                        dismissals AS Dismissals,
-                       ROUND(total_runs*100.0/NULLIF(total_balls,0),2) AS SR,
-                       total_sixes AS '6s'
-                FROM matchups ORDER BY total_balls DESC LIMIT 20
+                       ROUND(runs*100.0/NULLIF(balls,0),2) AS SR,
+                       sixes AS '6s'
+                FROM matchups ORDER BY balls DESC LIMIT 20
             """, "chart": "none", "x": "", "y": "",
         },
     },
-    "🏆 Match Records": {
+    "Match Records": {
         "Highest Team Totals": {
             "sql": """
                 SELECT season AS Season, venue AS Venue,
@@ -407,7 +407,7 @@ PRESET_CATEGORIES: dict[str, dict[str, dict]] = {
             """, "chart": "none", "x": "", "y": "",
         },
     },
-    "📊 Team Records": {
+    "Team Records": {
         "All-Time Team Win Percentages": {
             "sql": """
                 SELECT team AS Team, SUM(matches_played) AS Matches,
@@ -447,7 +447,7 @@ PRESET_CATEGORIES: dict[str, dict[str, dict]] = {
             """, "chart": "bar", "x": "Team", "y": "Field_Pct",
         },
     },
-    "⚡ Powerplay & Death": {
+    "Powerplay & Death": {
         "Best Powerplay Batting (team avg runs)": {
             "sql": """
                 SELECT p.batting_team AS Team,
@@ -485,7 +485,7 @@ PRESET_CATEGORIES: dict[str, dict[str, dict]] = {
             """, "chart": "bar", "x": "Batter", "y": "SR",
         },
     },
-    "🤝 Partnerships": {
+    "Partnerships": {
         "Highest Partnership Stands": {
             "sql": """
                 SELECT p.batting_partners AS Partners, p.runs AS Runs,
@@ -518,7 +518,7 @@ PRESET_CATEGORIES: dict[str, dict[str, dict]] = {
             """, "chart": "bar", "x": "Partners", "y": "SR",
         },
     },
-    "🎯 Pressure & Clutch": {
+    "Pressure & Clutch": {
         "Players for 5+ Teams": {
             "sql": """
                 SELECT batter AS Player, COUNT(DISTINCT batting_team) AS Teams,
@@ -565,7 +565,7 @@ PRESET_CATEGORIES: dict[str, dict[str, dict]] = {
             """, "chart": "bar", "x": "Player", "y": "Runs",
         },
     },
-    "🎪 Fun Facts & Anomalies": {
+    "Fun Facts & Anomalies": {
         "Most Ducks (0 runs, got out)": {
             "sql": """
                 SELECT batter AS Player,
@@ -629,6 +629,75 @@ PRESET_CATEGORIES: dict[str, dict[str, dict]] = {
                 FROM balls WHERE player_out IS NOT NULL AND wicket_kind IS NOT NULL
                 GROUP BY wicket_kind ORDER BY Total DESC
             """, "chart": "bar", "x": "Dismissal_Type", "y": "Total",
+        },
+    },
+    "Dot Ball Analysis": {
+        "Top Dot Ball Bowlers (most dots)": {
+            "sql": """
+                SELECT bowler AS Bowler, SUM(dots_bowled) AS Dot_Balls,
+                       SUM(balls_bowled) AS Total_Balls,
+                       ROUND(SUM(dots_bowled)*100.0/NULLIF(SUM(balls_bowled),0),1) AS Dot_Pct,
+                       SUM(wickets) AS Wickets,
+                       ROUND(SUM(runs_conceded)*6.0/NULLIF(SUM(balls_bowled),0),2) AS Economy
+                FROM player_bowling GROUP BY bowler ORDER BY Dot_Balls DESC LIMIT 20
+            """, "chart": "bar", "x": "Bowler", "y": "Dot_Balls",
+        },
+        "Dot Ball Suffocators (highest dot %)": {
+            "sql": """
+                SELECT bowler AS Bowler, SUM(dots_bowled) AS Dots,
+                       SUM(balls_bowled) AS Balls,
+                       ROUND(SUM(dots_bowled)*100.0/NULLIF(SUM(balls_bowled),0),1) AS Dot_Pct,
+                       SUM(wickets) AS Wickets,
+                       ROUND(SUM(runs_conceded)*6.0/NULLIF(SUM(balls_bowled),0),2) AS Economy
+                FROM player_bowling GROUP BY bowler
+                HAVING SUM(balls_bowled) >= 500
+                ORDER BY Dot_Pct DESC LIMIT 20
+            """, "chart": "bar", "x": "Bowler", "y": "Dot_Pct",
+        },
+        "Top Dot Ball Victims (batters facing most dots)": {
+            "sql": """
+                SELECT batter AS Batter, SUM(dots_faced) AS Dots_Faced,
+                       SUM(balls) AS Balls,
+                       ROUND(SUM(dots_faced)*100.0/NULLIF(SUM(balls),0),1) AS Dot_Pct,
+                       SUM(runs) AS Runs,
+                       ROUND(SUM(runs)*100.0/NULLIF(SUM(balls),0),1) AS SR
+                FROM player_batting GROUP BY batter ORDER BY Dots_Faced DESC LIMIT 20
+            """, "chart": "bar", "x": "Batter", "y": "Dots_Faced",
+        },
+        "Best Dot Ball Avoidance (lowest dot % batters, min 500 balls)": {
+            "sql": """
+                SELECT batter AS Batter, SUM(dots_faced) AS Dots_Faced,
+                       SUM(balls) AS Balls,
+                       ROUND(SUM(dots_faced)*100.0/NULLIF(SUM(balls),0),1) AS Dot_Pct,
+                       SUM(runs) AS Runs,
+                       ROUND(SUM(runs)*100.0/NULLIF(SUM(balls),0),1) AS SR
+                FROM player_batting GROUP BY batter
+                HAVING SUM(balls) >= 500
+                ORDER BY Dot_Pct ASC LIMIT 20
+            """, "chart": "bar", "x": "Batter", "y": "Dot_Pct",
+        },
+        "Dot Ball Pressure Sequences": {
+            "sql": """
+                SELECT consecutive_dots_before AS Consecutive_Dots,
+                       dot_sequence_outcome AS Outcome,
+                       count AS Total, pct AS Percentage
+                FROM dot_sequences
+                WHERE consecutive_dots_before >= 3
+                ORDER BY consecutive_dots_before ASC, count DESC
+            """, "chart": "bar", "x": "Outcome", "y": "Total",
+        },
+        "Dot Ball Kings by Phase": {
+            "sql": """
+                SELECT b.bowler AS Bowler, b.match_phase AS Phase,
+                       SUM(CASE WHEN b.is_dot THEN 1 ELSE 0 END) AS Dots,
+                       COUNT(*) AS Balls,
+                       ROUND(SUM(CASE WHEN b.is_dot THEN 1 ELSE 0 END)*100.0/COUNT(*),1) AS Dot_Pct
+                FROM balls b
+                WHERE b.valid_ball = true
+                GROUP BY b.bowler, b.match_phase
+                HAVING COUNT(*) >= 200
+                ORDER BY Dot_Pct DESC LIMIT 20
+            """, "chart": "bar", "x": "Bowler", "y": "Dot_Pct",
         },
     },
 }
@@ -1299,12 +1368,12 @@ def _show_summary_stats(df: pd.DataFrame):
 #  PAGE UI
 # ═══════════════════════════════════════════════════════════════════════
 
-st.title("🔍 Explorer")
+st.title("Explorer")
 st.caption("The ultimate IPL analytics power-tool — 40+ one-click presets, 9 entity types, deep filters, and instant visualizations.")
 
 # ── Navigation tabs ─────────────────────────────────────────────────────
-main_tab_guide, main_tab_presets, main_tab_builder, main_tab_dict = st.tabs([
-    "📖 User Guide", "⚡ Quick Presets", "🔧 Query Builder", "📚 Data Dictionary",
+main_tab_builder, main_tab_presets, main_tab_guide, main_tab_dict = st.tabs([
+    "Query Builder", "Quick Presets", "User Guide", "Data Dictionary",
 ])
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -1318,36 +1387,37 @@ Welcome to the **Explorer** — your all-access pass to querying 18 seasons of I
 This tool gives you two ways to explore:
 """)
 
-    with st.expander("⚡ Quick Presets — One-Click Analytics", expanded=True):
+    with st.expander("Quick Presets — One-Click Analytics", expanded=True):
         st.markdown("""
 **What are Presets?** Pre-built queries covering the most popular IPL analytics questions — organized into 10 categories.
 
 **How to use:**
-1. Go to the **⚡ Quick Presets** tab
-2. Pick a category (e.g., 🏏 Batting Legends, 🎯 Bowling Masters)
+1. Go to the **Quick Presets** tab
+2. Pick a category (e.g., Batting Legends, Bowling Masters)
 3. Click any preset button — results appear instantly with charts
 
 **Categories available:**
 | Category | What it covers |
 |----------|---------------|
-| 🏏 Batting Legends | Top scorers, highest SR, centuries, fifties, sixes, highest scores |
-| 🎯 Bowling Masters | Top wicket takers, best economy, death/PP specialists, maidens |
-| 🏟️ Venue Intelligence | Highest scoring venues, chasing success, toss impact |
-| 👥 Head-to-Head | Batter vs bowler matchups, rivalry stats |
-| 🏆 Match Records | Highest/lowest totals, biggest wins, super overs, finals |
-| 📊 Team Records | Win percentages, season-by-season, toss trends |
-| ⚡ Powerplay & Death | Powerplay batting, death bowling, most expensive overs |
-| 🤝 Partnerships | Highest stands, most prolific pairs, fastest partnerships |
-| 🎯 Pressure & Clutch | Close match heroes, knockout performers, PoM awards |
-| 🎪 Fun Facts | Ducks, golden ducks, boundary %, Orange/Purple cap winners |
+| Batting Legends | Top scorers, highest SR, centuries, fifties, sixes, highest scores |
+| Bowling Masters | Top wicket takers, best economy, death/PP specialists, maidens |
+| Venue Intelligence | Highest scoring venues, chasing success, toss impact |
+| Head-to-Head Matchups | Batter vs bowler matchups, rivalry stats |
+| Match Records | Highest/lowest totals, biggest wins, super overs, finals |
+| Team Records | Win percentages, season-by-season, toss trends |
+| Powerplay & Death | Powerplay batting, death bowling, most expensive overs |
+| Partnerships | Highest stands, most prolific pairs, fastest partnerships |
+| Pressure & Clutch | Close match heroes, knockout performers, PoM awards |
+| Fun Facts & Anomalies | Ducks, golden ducks, boundary %, Orange/Purple cap winners |
+| Dot Ball Analysis | Top dot ball bowlers and batters, dot sequences, phase analysis |
 """)
 
-    with st.expander("🔧 Query Builder — Build Your Own Analysis", expanded=True):
+    with st.expander("Query Builder — Build Your Own Analysis", expanded=True):
         st.markdown("""
 **What is the Query Builder?** A point-and-click interface to create custom SQL queries — no coding required.
 
 **Step-by-step:**
-1. Go to the **🔧 Query Builder** tab
+1. Go to the **Query Builder** tab
 2. **Choose an entity type** (what you want to analyze):
 
 | Entity Type | Best for | Example question |
@@ -1374,7 +1444,7 @@ This tool gives you two ways to explore:
 4. Click **Run Query** — results + chart + downloadable CSV appear instantly
 """)
 
-    with st.expander("💡 10 Example Queries You Can Build", expanded=False):
+    with st.expander("10 Example Queries You Can Build", expanded=False):
         st.markdown("""
 Here are real examples to try in the Query Builder:
 
@@ -1411,7 +1481,7 @@ Here are real examples to try in the Query Builder:
 - Entity: **Bowling Stats** → Min wickets: 50 → Sort by: **economy**
 """)
 
-    with st.expander("🎓 Cricket Terminology Cheat Sheet", expanded=False):
+    with st.expander("Cricket Terminology Cheat Sheet", expanded=False):
         st.markdown("""
 | Term | Meaning |
 |------|---------|
@@ -1443,27 +1513,36 @@ Here are real examples to try in the Query Builder:
 # ═══════════════════════════════════════════════════════════════════════
 with main_tab_presets:
     st.subheader("Quick Presets")
-    st.caption("Click any preset to instantly see results with charts. 40+ pre-built analytics queries organized by category.")
+    st.caption("Click any preset to instantly see results with charts. 50+ pre-built analytics queries organized by category.")
 
-    preset_category = st.selectbox(
-        "Select a category",
-        list(PRESET_CATEGORIES.keys()),
-        key="preset_cat_select",
+    all_cat_names = ["All Categories"] + list(PRESET_CATEGORIES.keys())
+    selected_filter = st.selectbox(
+        "Filter by category",
+        all_cat_names,
+        key="preset_cat_filter",
     )
 
-    category_presets = PRESET_CATEGORIES[preset_category]
-    preset_names = list(category_presets.keys())
+    if selected_filter == "All Categories":
+        cats_to_show = PRESET_CATEGORIES
+    else:
+        cats_to_show = {selected_filter: PRESET_CATEGORIES[selected_filter]}
 
-    cols = st.columns(min(3, len(preset_names)))
     preset_clicked: str | None = None
+    clicked_category: str | None = None
 
-    for i, name in enumerate(preset_names):
-        with cols[i % len(cols)]:
-            if st.button(name, key=f"preset_{preset_category}_{i}", use_container_width=True):
-                preset_clicked = name
+    for cat_name, cat_presets in cats_to_show.items():
+        st.markdown(f"#### {cat_name}")
+        preset_names = list(cat_presets.keys())
+        cols = st.columns(min(3, len(preset_names)))
+        for i, name in enumerate(preset_names):
+            with cols[i % len(cols)]:
+                if st.button(name, key=f"preset_{cat_name}_{i}", use_container_width=True):
+                    preset_clicked = name
+                    clicked_category = cat_name
+        st.divider()
 
-    if preset_clicked:
-        preset = category_presets[preset_clicked]
+    if preset_clicked and clicked_category:
+        preset = cats_to_show[clicked_category][preset_clicked]
         st.markdown(f"### {preset_clicked}")
         with st.expander("SQL Query", expanded=False):
             st.code(preset["sql"].strip(), language="sql")
@@ -1489,7 +1568,7 @@ with main_tab_presets:
 
                 csv = preset_df.to_csv(index=False)
                 st.download_button(
-                    "📥 Download CSV",
+                    "Download CSV",
                     csv,
                     file_name=f"explorer_{preset_clicked.replace(' ', '_').lower()}.csv",
                     mime="text/csv",
@@ -1798,13 +1877,13 @@ with main_tab_builder:
                 st.dataframe(result_df, use_container_width=True, hide_index=True)
 
                 # Summary statistics
-                with st.expander("📊 Summary Statistics"):
+                with st.expander("Summary Statistics"):
                     _show_summary_stats(result_df)
 
                 # Export
                 csv = result_df.to_csv(index=False)
                 st.download_button(
-                    "📥 Download Results as CSV",
+                    "Download Results as CSV",
                     csv,
                     file_name="explorer_results.csv",
                     mime="text/csv",
