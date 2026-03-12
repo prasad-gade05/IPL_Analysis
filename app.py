@@ -16,12 +16,42 @@ st.set_page_config(
     },
 )
 
-# Hide the default sidebar navigation completely
+# Hide the default sidebar and inject global overflow fixes
 st.markdown(
     """
     <style>
+    /* Hide sidebar completely */
     [data-testid="stSidebar"] { display: none; }
     [data-testid="stSidebarCollapsedControl"] { display: none; }
+
+    /* Prevent text overflow in columns and metric cards */
+    [data-testid="stMetricValue"],
+    [data-testid="stMetricLabel"],
+    [data-testid="stMetricDelta"],
+    [data-testid="column"] > div {
+        overflow-wrap: break-word;
+        word-wrap: break-word;
+    }
+
+    /* Ensure page link labels don't overflow */
+    [data-testid="stPageLink"] p {
+        font-size: 0.82rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* Give metric labels more breathing room */
+    [data-testid="stMetricLabel"] {
+        font-size: 0.78rem !important;
+    }
+
+    /* Ensure subheaders and captions wrap properly */
+    .stMarkdown h2, .stMarkdown h3, .stMarkdown h4,
+    .stCaption, .stMarkdown p {
+        overflow-wrap: break-word;
+        word-wrap: break-word;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -33,14 +63,14 @@ season_hub = st.Page("pages/01_Season_Hub.py", title="Season Hub")
 leaderboards = st.Page("pages/02_Leaderboards.py", title="Leaderboards")
 player_profile = st.Page("pages/03_Player_Profile.py", title="Player Profile")
 team_profile = st.Page("pages/04_Team_Profile.py", title="Team Profile")
-venue_intel = st.Page("pages/05_Venue_Intelligence.py", title="Venue Intelligence")
+venue_intel = st.Page("pages/05_Venue_Intelligence.py", title="Venue")
 head_to_head = st.Page("pages/06_Head_to_Head.py", title="Head to Head")
 phase_analysis = st.Page("pages/07_Phase_Analysis.py", title="Phase Analysis")
-pressure = st.Page("pages/08_Pressure_Momentum.py", title="Pressure & Momentum")
-trends = st.Page("pages/09_Trends_Evolution.py", title="Trends & Evolution")
-records = st.Page("pages/10_Records_Anomalies.py", title="Records & Anomalies")
+pressure = st.Page("pages/08_Pressure_Momentum.py", title="Pressure")
+trends = st.Page("pages/09_Trends_Evolution.py", title="Trends")
+records = st.Page("pages/10_Records_Anomalies.py", title="Records")
 match_center = st.Page("pages/11_Match_Center.py", title="Match Center")
-tournament = st.Page("pages/12_Tournament_Structure.py", title="Tournament Structure")
+tournament = st.Page("pages/12_Tournament_Structure.py", title="Tournament")
 explorer = st.Page("pages/13_Explorer.py", title="Explorer")
 
 ALL_PAGES = [

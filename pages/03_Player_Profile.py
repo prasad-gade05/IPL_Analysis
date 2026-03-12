@@ -457,9 +457,9 @@ is_bowler = bowl_summary["balls"] > 0
 
 st.markdown(f"# {player}")
 
-team_tags = "  •  ".join([f"**{t}**" for t in teams])
+team_tags = "  /  ".join([f"**{t}**" for t in teams])
 career = f"{int(span['first'])} – {int(span['last'])}" if span["first"] else "N/A"
-st.markdown(f"{team_tags}  &nbsp;|&nbsp;  Career: **{career}**")
+st.markdown(f"{team_tags}  --  Career: **{career}**")
 
 # 8 metric cards
 c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8)

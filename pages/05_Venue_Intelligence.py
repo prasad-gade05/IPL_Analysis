@@ -406,8 +406,8 @@ else:
     season_range_str = f"{min(seasons)}–{max(seasons)}" if seasons else "N/A"
     st.subheader(f"{selected_venue}")
     st.markdown(
-        f"**City:** {v.get('city', 'N/A')} &nbsp;|&nbsp; "
-        f"**Total Matches:** {format_number(v['total_matches'])} &nbsp;|&nbsp; "
+        f"**City:** {v.get('city', 'N/A')}  --  "
+        f"**Total Matches:** {format_number(v['total_matches'])}  --  "
         f"**Seasons Hosted:** {len(seasons)} ({season_range_str})"
     )
 

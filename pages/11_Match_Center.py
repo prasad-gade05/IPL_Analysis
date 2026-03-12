@@ -295,9 +295,9 @@ def render_header(match: pd.Series):
 
     parts: list[str] = []
     if pd.notna(winner) and winner:
-        parts.append(f"**{winner}** won")
+        parts.append(f"<strong>{winner}</strong> won")
         if pd.notna(margin_val) and pd.notna(margin_type):
-            parts.append(f"by **{_safe_int(margin_val)}** {margin_type}")
+            parts.append(f"by <strong>{_safe_int(margin_val)}</strong> {margin_type}")
         if pd.notna(method) and method and str(method).lower() not in ("", "na", "nan"):
             method_display = str(method).upper().replace("_", " ")
             if method_display not in ("NO DLS",):
@@ -305,7 +305,7 @@ def render_header(match: pd.Series):
         if is_so:
             parts.append("(Super Over)")
     else:
-        parts.append("**No Result**")
+        parts.append("<strong>No Result</strong>")
 
     result_line = " ".join(parts)
     st.markdown(
@@ -338,11 +338,12 @@ def render_header(match: pd.Series):
 
     potm = match.get("player_of_match", "")
     if pd.notna(potm) and potm:
-        meta_parts.append(f"Player of the Match: **{potm}**")
+        meta_parts.append(f"Player of the Match: <strong>{potm}</strong>")
 
+    sep = '<span style="margin:0 8px;color:#555">&middot;</span>'
     st.markdown(
         "<div style='text-align:center; color:#aaa; font-size:0.9rem'>"
-        + " &nbsp;|&nbsp; ".join(meta_parts)
+        + sep.join(meta_parts)
         + "</div>",
         unsafe_allow_html=True,
     )
@@ -902,9 +903,10 @@ if matches_df.empty:
 
 # Build human-readable labels sorted by date
 matches_df = matches_df.sort_values("date").reset_index(drop=True)
+matches_df["_match_num"] = range(1, len(matches_df) + 1)
 matches_df["_label"] = matches_df.apply(
     lambda r: (
-        f"{r['team1']} vs {r['team2']} -- "
+        f"Match {r['_match_num']}: {r['team1']} vs {r['team2']} -- "
         f"{pd.to_datetime(r['date']).strftime('%d %b %Y')} -- "
         f"{r['venue']}"
     ),
