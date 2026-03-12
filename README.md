@@ -1,11 +1,13 @@
-# 🏏 IPL Analytics Platform
+# IPL Analytics Platform
 
-> **The Definitive IPL Data Hub — 18 Seasons | 1,200+ Matches | 700+ Players | 40+ Venues**
+> **18 Seasons | 1,169 Matches | 703 Players | 37 Venues**
 
 A comprehensive, interactive analytics dashboard for Indian Premier League data (2008–2025),
 built with **Streamlit + DuckDB + Parquet + Plotly**.
 
-## 🚀 Quick Start
+For detailed technical documentation (architecture, data pipeline, schema, cricket glossary), see **[TECHNICAL.md](TECHNICAL.md)**.
+
+## Quick Start
 
 ### Prerequisites
 - Python 3.11+
@@ -36,7 +38,7 @@ python data/preprocessing/run_pipeline.py
 streamlit run app.py
 ```
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 IPL_Analysis/
@@ -85,19 +87,20 @@ IPL_Analysis/
 │       ├── filters.py              # Reusable Streamlit filter widgets
 │       └── formatters.py           # Number/text formatting
 ├── pages/                          # Streamlit multi-page app pages
-│   ├── 01_📅_Season_Hub.py
-│   ├── 02_🏆_Leaderboards.py
-│   ├── 03_🏏_Player_Profile.py
-│   ├── 04_👥_Team_Profile.py
-│   ├── 05_🏟️_Venue_Intelligence.py
-│   ├── 06_⚔️_Head_to_Head.py
-│   ├── 07_📊_Phase_Analysis.py
-│   ├── 08_🔥_Pressure_Momentum.py
-│   ├── 09_📈_Trends_Evolution.py
-│   ├── 10_🎯_Records_Anomalies.py
-│   ├── 11_📋_Match_Center.py
-│   ├── 12_🏆_Tournament_Structure.py
-│   └── 13_🔍_Explorer.py
+│   ├── 00_Home.py
+│   ├── 01_Season_Hub.py
+│   ├── 02_Leaderboards.py
+│   ├── 03_Player_Profile.py
+│   ├── 04_Team_Profile.py
+│   ├── 05_Venue_Intelligence.py
+│   ├── 06_Head_to_Head.py
+│   ├── 07_Phase_Analysis.py
+│   ├── 08_Pressure_Momentum.py
+│   ├── 09_Trends_Evolution.py
+│   ├── 10_Records_Anomalies.py
+│   ├── 11_Match_Center.py
+│   ├── 12_Tournament_Structure.py
+│   └── 13_Explorer.py
 ├── tests/
 │   └── test_project.py
 └── AI_Instructions/                # Architecture docs (git-ignored)
@@ -108,7 +111,7 @@ IPL_Analysis/
     └── testing_and_data_integrity.yaml
 ```
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Component | Technology |
 |-----------|-----------|
@@ -119,7 +122,7 @@ IPL_Analysis/
 | Hosting | Streamlit Community Cloud (free) |
 | Language | 100% Python |
 
-## 📊 Dashboard Pages (14 total)
+## Dashboard Pages (14 total)
 
 1. **Home** — Hero stats, IPL timeline, latest season highlights
 2. **Season Hub** — Complete season yearbook with points table
@@ -134,9 +137,9 @@ IPL_Analysis/
 11. **Records & Anomalies** — Every IPL record and outlier
 12. **Match Center** — Ball-by-ball match replay
 13. **Tournament Structure** — Season formats and brackets
-14. **Explorer** — Custom query builder
+14. **Explorer** — Custom query builder with 58 presets
 
-## ☁️ Deployment (Streamlit Cloud)
+## Deployment (Streamlit Cloud)
 
 1. Push to GitHub
 2. Go to [share.streamlit.io](https://share.streamlit.io)
@@ -144,6 +147,6 @@ IPL_Analysis/
 4. Set main file: `app.py`
 5. Deploy — that's it!
 
-## 📦 Data
+## Data
 
 Dataset sourced from Kaggle: [IPL Dataset 2008–2025](https://www.kaggle.com/datasets/chaitu20/ipl-dataset2008-2025) by **chaitu20**.

@@ -618,7 +618,7 @@ with tab_dots:
                                  "dot_pct", "runs", "strike_rate"]].copy()
             disp_v.columns = ["Batter", "Dots Faced", "Balls",
                               "Dot %", "Runs", "SR"]
-            st.dataframe(disp_v, use_container_width=True, hide_index=True)
+            st.dataframe(disp_v, width='stretch', hide_index=True)
 
             fig_victims = px.bar(
                 victims_df.sort_values("total_dots", ascending=True),
@@ -627,7 +627,7 @@ with tab_dots:
                 text_auto=True,
             )
             apply_ipl_style(fig_victims, height=450, show_legend=False)
-            st.plotly_chart(fig_victims, use_container_width=True)
+            st.plotly_chart(fig_victims, width='stretch')
         else:
             st.info("No data for the selected season range.")
 
@@ -639,7 +639,7 @@ with tab_dots:
                                   "dot_pct", "runs", "strike_rate"]].copy()
             disp_a.columns = ["Batter", "Dots Faced", "Balls",
                               "Dot %", "Runs", "SR"]
-            st.dataframe(disp_a, use_container_width=True, hide_index=True)
+            st.dataframe(disp_a, width='stretch', hide_index=True)
 
             fig_avoiders = px.bar(
                 avoiders_df.sort_values("dot_pct", ascending=False),
@@ -648,7 +648,7 @@ with tab_dots:
                 text_auto=True,
             )
             apply_ipl_style(fig_avoiders, height=450, show_legend=False)
-            st.plotly_chart(fig_avoiders, use_container_width=True)
+            st.plotly_chart(fig_avoiders, width='stretch')
         else:
             st.info("No data for the selected season range.")
 

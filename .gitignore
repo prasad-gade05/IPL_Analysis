@@ -45,12 +45,11 @@ desktop.ini
 *.tmp
 *.temp
 
-# Keep original Data/ out of git (raw kaggle download)
-Data/
+# Raw data (too large for git)
+Data/raw/
+Data/processed/ball_by_ball_cleaned.parquet
 
-# Keep raw CSV out (too large for git), processed parquets are committed
-data/raw/
-data/processed/ball_by_ball_cleaned.parquet
+# Processed parquets and pipeline scripts are committed for deployment
 
 # AI instructions are for dev reference only
 AI_Instructions/

@@ -1350,7 +1350,7 @@ def _auto_chart(df: pd.DataFrame, group_by: str, entity_type: str):
         )
 
     apply_ipl_style(fig, height=max(400, min(len(df) * 28, 800)))
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
 
 def _show_summary_stats(df: pd.DataFrame):
@@ -1361,7 +1361,7 @@ def _show_summary_stats(df: pd.DataFrame):
     stats.columns = ["Count", "Mean", "Min", "Median", "Max"]
     stats["Mean"] = stats["Mean"].round(2)
     stats["Median"] = stats["Median"].round(2)
-    st.dataframe(stats, use_container_width=True)
+    st.dataframe(stats, width='stretch')
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -1536,7 +1536,7 @@ with main_tab_presets:
         cols = st.columns(min(3, len(preset_names)))
         for i, name in enumerate(preset_names):
             with cols[i % len(cols)]:
-                if st.button(name, key=f"preset_{cat_name}_{i}", use_container_width=True):
+                if st.button(name, key=f"preset_{cat_name}_{i}", width='stretch'):
                     preset_clicked = name
                     clicked_category = cat_name
         st.divider()
@@ -1562,9 +1562,9 @@ with main_tab_presets:
                         text_auto=True,
                     )
                     apply_ipl_style(fig, height=max(400, len(chart_df) * 28))
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width='stretch')
 
-                st.dataframe(preset_df, use_container_width=True, hide_index=True)
+                st.dataframe(preset_df, width='stretch', hide_index=True)
 
                 csv = preset_df.to_csv(index=False)
                 st.download_button(
@@ -1784,7 +1784,7 @@ with main_tab_builder:
                     key="pp_sort",
                 )
 
-        submitted = st.form_submit_button("🚀 Run Query", use_container_width=True, type="primary")
+        submitted = st.form_submit_button("🚀 Run Query", width='stretch', type="primary")
 
     # ── Execute query after form submission ─────────────────────────────
     if submitted:
@@ -1874,7 +1874,7 @@ with main_tab_builder:
                 _auto_chart(result_df, chart_group, entity_type)
 
                 # Result table
-                st.dataframe(result_df, use_container_width=True, hide_index=True)
+                st.dataframe(result_df, width='stretch', hide_index=True)
 
                 # Summary statistics
                 with st.expander("Summary Statistics"):
@@ -1915,14 +1915,14 @@ with main_tab_dict:
     with tab_schema:
         try:
             col_df = get_view_columns(selected_view)
-            st.dataframe(col_df, use_container_width=True, hide_index=True)
+            st.dataframe(col_df, width='stretch', hide_index=True)
         except Exception as e:
             st.error(f"Could not load schema: {e}")
 
     with tab_sample:
         try:
             sample_df = get_view_sample(selected_view)
-            st.dataframe(sample_df, use_container_width=True, hide_index=True)
+            st.dataframe(sample_df, width='stretch', hide_index=True)
         except Exception as e:
             st.error(f"Could not load sample: {e}")
 

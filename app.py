@@ -124,9 +124,20 @@ for row_start in range(0, len(ALL_PAGES), ROW_SIZE):
     cols = st.columns(ROW_SIZE)
     for i, page in enumerate(row_pages):
         with cols[i]:
-            st.page_link(page, label=page.title, use_container_width=True)
+            st.page_link(page, label=page.title, width='stretch')
 
 st.divider()
 
 # --- Run the selected page ---
 pg.run()
+
+# --- Footer (visible on ALL pages) ---
+st.markdown("---")
+st.markdown(
+    "<p style='text-align:center; color:#888; font-size:0.85rem;'>"
+    "<a href='https://prasadgade.dev/' target='_blank' style='color:#FF6B6B; text-decoration:none;'>Made by Prasad Gade</a>"
+    " &middot; "
+    "<a href='https://github.com/prasad-gade05/IPL_Analysis' target='_blank' style='color:#FF6B6B; text-decoration:none;'>GitHub Repository</a>"
+    "</p>",
+    unsafe_allow_html=True,
+)

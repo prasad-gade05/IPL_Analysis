@@ -362,14 +362,6 @@ def main():
             )
             st.plotly_chart(fig, width='stretch')
 
-    # Footer
-    st.markdown("---")
-    st.markdown(
-        "<p style='text-align:center; color:#666; font-size:0.8rem;'>"
-        "Built with Streamlit, DuckDB and Plotly &nbsp;|&nbsp; "
-        "Data: IPL Ball-by-Ball 2008-2025</p>",
-        unsafe_allow_html=True,
-    )
 
 
 main()
