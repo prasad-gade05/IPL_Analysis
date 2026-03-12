@@ -1,5 +1,5 @@
 """
-📊 Phase Analysis — Powerplay, Middle, Death over deep-dive.
+Phase Analysis — Powerplay, Middle, Death over deep-dive.
 """
 
 import streamlit as st
@@ -18,21 +18,16 @@ from src.utils.formatters import format_number, format_strike_rate, format_econo
 #  PAGE CONFIG
 # ═══════════════════════════════════════════════════════════════════════════════
 
-st.set_page_config(
-    page_title="Phase Analysis | IPL Analytics",
-    page_icon="📊",
-    layout="wide",
-)
 st.markdown(big_number_style(), unsafe_allow_html=True)
-st.title("📊 Phase Analysis")
+st.title("Phase Analysis")
 st.caption("Deep-dive into Powerplay (overs 1–6), Middle (7–15), and Death (16–20) overs")
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  SIDEBAR FILTERS
+#  FILTERS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-with st.sidebar:
-    st.header("🔍 Filters")
+fc1, fc2 = st.columns([2, 1])
+with fc1:
     s1, s2 = st.slider(
         "Season range",
         min_value=min(ALL_SEASONS),
@@ -40,10 +35,12 @@ with st.sidebar:
         value=(min(ALL_SEASONS), max(ALL_SEASONS)),
         key="phase_season_range",
     )
+with fc2:
     innings_choice = st.radio(
         "Innings",
         ["Both", "1st Innings", "2nd Innings"],
         key="phase_innings",
+        horizontal=True,
     )
 
 inn_filter = ""
@@ -146,7 +143,7 @@ def _phase_avg_trend(phase, _s1, _s2, _inn):
         SELECT season, innings, ROUND(AVG(phase_runs), 2) AS avg_runs
         FROM (
             SELECT match_id, innings, season,
-                   SUM(runs_total) AS phase_runs
+                   SUM((runs_batter + runs_extras)) AS phase_runs
             FROM   balls
             WHERE  match_phase = '{phase}'
               AND  season BETWEEN {_s1} AND {_s2} {_inn}
@@ -162,7 +159,7 @@ def _phase_avg_trend(phase, _s1, _s2, _inn):
 @st.cache_data(ttl=3600)
 def _phase_distribution(phase, _s1, _s2, _inn):
     return query(f"""
-        SELECT SUM(runs_total) AS runs
+        SELECT SUM((runs_batter + runs_extras)) AS runs
         FROM   balls
         WHERE  match_phase = '{phase}'
           AND  season BETWEEN {_s1} AND {_s2} {_inn}
@@ -179,7 +176,7 @@ def _phase_team_avg(phase, _s1, _s2, _inn):
         FROM (
             SELECT match_id, innings,
                    MAX(batting_team) AS team,
-                   SUM(runs_total)   AS phase_runs
+                   SUM((runs_batter + runs_extras))   AS phase_runs
             FROM   balls
             WHERE  match_phase = '{phase}'
               AND  season BETWEEN {_s1} AND {_s2} {_inn}
@@ -230,7 +227,7 @@ def _phase_best_scores(phase, _s1, _s2, _inn):
             SELECT match_id, innings, season,
                    MAX(batting_team) AS team,
                    MAX(bowling_team) AS vs,
-                   SUM(runs_total)   AS phase_runs,
+                   SUM((runs_batter + runs_extras))   AS phase_runs,
                    SUM(CASE WHEN wicket_kind IS NOT NULL THEN 1 ELSE 0 END)
                        AS phase_wickets
             FROM   balls
@@ -326,7 +323,7 @@ def _phase_rr_evolution(_s1, _s2, _inn):
                ROUND(AVG(phase_rr), 2) AS avg_rr
         FROM (
             SELECT match_id, innings, season, match_phase,
-                   SUM(runs_total) * 6.0
+                   SUM((runs_batter + runs_extras)) * 6.0
                        / NULLIF(SUM(CASE WHEN valid_ball THEN 1 ELSE 0 END), 0)
                        AS phase_rr
             FROM   balls
@@ -376,7 +373,7 @@ def _phase_contribution(_s1, _s2, _inn):
                ROUND(AVG(phase_runs), 2) AS avg_runs
         FROM (
             SELECT match_id, innings, season, match_phase,
-                   SUM(runs_total) AS phase_runs
+                   SUM((runs_batter + runs_extras)) AS phase_runs
             FROM   balls
             WHERE  match_phase IS NOT NULL
               AND  season BETWEEN {_s1} AND {_s2} {_inn}
@@ -405,7 +402,7 @@ def _over_by_over(_s1, _s2, _inn):
         FROM (
             SELECT over                                              AS over_num,
                    MAX(match_phase)                                  AS match_phase,
-                   ROUND(SUM(runs_total) * 1.0
+                   ROUND(SUM((runs_batter + runs_extras)) * 1.0
                          / COUNT(DISTINCT match_id || '-'
                                  || CAST(innings AS VARCHAR)), 2)    AS avg_runs,
                    ROUND(SUM(CASE WHEN wicket_kind IS NOT NULL
@@ -454,7 +451,7 @@ def _render_phase_tab(phase, trend_df, dist_df, team_df, dot_df, boundary_df,
                 title=f"Avg {label} Score Trend",
             )
             fig.update_layout(yaxis_title="Avg Runs", legend_title_text="")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("No trend data available.")
 
@@ -467,7 +464,7 @@ def _render_phase_tab(phase, trend_df, dist_df, team_df, dot_df, boundary_df,
             )
             fig.update_layout(xaxis_title="Runs", yaxis_title="Frequency")
             apply_ipl_style(fig)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("No distribution data available.")
 
@@ -482,7 +479,7 @@ def _render_phase_tab(phase, trend_df, dist_df, team_df, dot_df, boundary_df,
         fig.update_traces(marker_color=colors)
         fig.update_layout(yaxis=dict(categoryorder="total ascending"))
         apply_ipl_style(fig, height=500)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     # ── Row 3: Dot % trend | Boundary % trend ───────────────────
     col3, col4 = st.columns(2)
@@ -493,7 +490,7 @@ def _render_phase_tab(phase, trend_df, dist_df, team_df, dot_df, boundary_df,
                 title=f"{label} Dot Ball % Trend",
             )
             fig.update_layout(yaxis_title="Dot %")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("No dot-ball data available.")
 
@@ -504,7 +501,7 @@ def _render_phase_tab(phase, trend_df, dist_df, team_df, dot_df, boundary_df,
                 title=f"{label} Boundary % Trend",
             )
             fig.update_layout(yaxis_title="Boundary %")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("No boundary data available.")
 
@@ -513,37 +510,37 @@ def _render_phase_tab(phase, trend_df, dist_df, team_df, dot_df, boundary_df,
         extra_widget()
 
     # ── Row 4: Best scores table ─────────────────────────────────
-    st.subheader(f"🏆 Top 15 {label} Scores")
+    st.subheader(f"Top 15 {label} Scores")
     if not best_df.empty:
         disp = best_df.rename(columns={
             "team": "Team", "runs": "Runs", "wickets": "Wkts Lost",
             "vs": "Vs", "season": "Season",
         })
-        st.dataframe(disp, use_container_width=True, hide_index=True)
+        st.dataframe(disp, width='stretch', hide_index=True)
     else:
         st.info("No data available.")
 
     # ── Row 5: Top batters | Top bowlers ─────────────────────────
     col5, col6 = st.columns(2)
     with col5:
-        st.subheader(f"🏏 Top {label} Batters")
+        st.subheader(f"Top {label} Batters")
         if not batters_df.empty:
             disp = batters_df.rename(columns={
                 "batter": "Batter", "runs": "Runs", "balls": "Balls",
                 "sr": "SR", "boundaries": "Boundaries", "avg": "Avg",
             })
-            st.dataframe(disp, use_container_width=True, hide_index=True)
+            st.dataframe(disp, width='stretch', hide_index=True)
         else:
             st.info("No batter data (min 100 balls).")
 
     with col6:
-        st.subheader(f"🎳 Top {label} Bowlers")
+        st.subheader(f"Top {label} Bowlers")
         if not bowlers_df.empty:
             disp = bowlers_df.rename(columns={
                 "bowler": "Bowler", "balls": "Balls", "runs": "Runs",
                 "wickets": "Wkts", "economy": "Econ", "dot_pct": "Dot %",
             })
-            st.dataframe(disp, use_container_width=True, hide_index=True)
+            st.dataframe(disp, width='stretch', hide_index=True)
         else:
             st.info("No bowler data (min 100 balls).")
 
@@ -553,8 +550,8 @@ def _render_phase_tab(phase, trend_df, dist_df, team_df, dot_df, boundary_df,
 # ═══════════════════════════════════════════════════════════════════════════════
 
 tab_pp, tab_mid, tab_death, tab_compare, tab_obo = st.tabs([
-    "⚡ Powerplay", "🔄 Middle Overs", "💀 Death Overs",
-    "📊 Phase Comparison", "📈 Over-by-Over",
+    "Powerplay", "Middle Overs", "Death Overs",
+    "Phase Comparison", "Over-by-Over",
 ])
 
 # ─── TAB 1: POWERPLAY ────────────────────────────────────────────────────────
@@ -595,7 +592,7 @@ with tab_death:
                 title="Avg Sixes per Innings in Death Overs",
             )
             fig.update_layout(yaxis_title="Avg Sixes")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
     _render_phase_tab(
         phase="death",
@@ -612,7 +609,7 @@ with tab_death:
 
 # ─── TAB 4: PHASE COMPARISON ─────────────────────────────────────────────────
 with tab_compare:
-    st.subheader("📊 Phase Comparison")
+    st.subheader("Phase Comparison")
     phase_cmap = {p.capitalize(): c for p, c in PHASE_COLORS.items()}
 
     # Run-rate evolution
@@ -627,7 +624,7 @@ with tab_compare:
             if trace.name in phase_cmap:
                 trace.line.color = phase_cmap[trace.name]
                 trace.marker.color = phase_cmap[trace.name]
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     # Donut charts
     col1, col2 = st.columns(2)
@@ -642,7 +639,7 @@ with tab_compare:
             )
             fig.update_traces(textinfo="percent+label", textfont_size=12)
             apply_ipl_style(fig, show_legend=False)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
     with col2:
         wk_df = _phase_wicket_dist(s1, s2, inn_filter)
@@ -655,7 +652,7 @@ with tab_compare:
             )
             fig.update_traces(textinfo="percent+label", textfont_size=12)
             apply_ipl_style(fig, show_legend=False)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
     # Stacked bar — phase contribution
     contrib_df = _phase_contribution(s1, s2, inn_filter)
@@ -672,11 +669,11 @@ with tab_compare:
             xaxis=dict(dtick=1),
         )
         apply_ipl_style(fig, height=500)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
 # ─── TAB 5: OVER-BY-OVER ─────────────────────────────────────────────────────
 with tab_obo:
-    st.subheader("📈 Over-by-Over Analysis")
+    st.subheader("Over-by-Over Analysis")
 
     obo_df = _over_by_over(s1, s2, inn_filter)
     if obo_df.empty:
@@ -696,7 +693,7 @@ with tab_obo:
             yaxis_title="Avg Runs", legend_title_text="Phase",
         )
         apply_ipl_style(fig, height=450)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
         # Three probability charts
         col1, col2, col3 = st.columns(3)
@@ -712,7 +709,7 @@ with tab_obo:
                 yaxis_title="Wicket %", showlegend=False,
             )
             apply_ipl_style(fig, height=400)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
         with col2:
             fig = px.bar(
@@ -725,7 +722,7 @@ with tab_obo:
                 yaxis_title="Boundary %", showlegend=False,
             )
             apply_ipl_style(fig, height=400)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
         with col3:
             fig = px.bar(
@@ -738,8 +735,8 @@ with tab_obo:
                 yaxis_title="Dot %", showlegend=False,
             )
             apply_ipl_style(fig, height=400)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
 # ═══════════════════════════════════════════════════════════════════════════════
 st.divider()
-st.caption("📊 Phase Analysis • IPL Analytics Platform")
+st.caption("Phase Analysis • IPL Analytics Platform")

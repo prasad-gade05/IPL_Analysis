@@ -1,5 +1,5 @@
 """
-⚔️ Head-to-Head — Deep matchup comparisons: Batter vs Bowler & Team vs Team.
+Head-to-Head — Deep matchup comparisons: Batter vs Bowler & Team vs Team.
 """
 
 import streamlit as st
@@ -12,9 +12,8 @@ from src.visualizations.theme import (apply_ipl_style, styled_bar, styled_pie,
 from src.utils.constants import TEAM_COLORS, ALL_SEASONS
 from src.utils.formatters import format_number, format_strike_rate, format_average
 
-st.set_page_config(page_title="Head-to-Head | IPL Analytics", page_icon="⚔️", layout="wide")
 st.markdown(big_number_style(), unsafe_allow_html=True)
-st.title("⚔️ Head-to-Head")
+st.title("Head-to-Head")
 st.caption("Deep matchup comparisons — Batter vs Bowler or Team vs Team")
 
 # ─── Cached loaders ──────────────────────────────────────────────────────────
@@ -134,7 +133,7 @@ def load_top_wicket_takers(team_a, team_b, limit=10):
 
 # ─── Mode selector ───────────────────────────────────────────────────────────
 
-mode = st.radio("Select Mode", ["🏏 Batter vs Bowler", "🏟️ Team vs Team"],
+mode = st.radio("Select Mode", ["Batter vs Bowler", "Team vs Team"],
                 horizontal=True, label_visibility="collapsed")
 
 st.divider()
@@ -143,7 +142,7 @@ st.divider()
 # MODE 1: BATTER vs BOWLER
 # ═══════════════════════════════════════════════════════════════════════════════
 
-if mode == "🏏 Batter vs Bowler":
+if mode == "Batter vs Bowler":
     col_bat, col_bowl = st.columns(2)
     batters = load_batter_list()
     bowlers = load_bowler_list()
@@ -172,7 +171,7 @@ if mode == "🏏 Batter vs Bowler":
         boundary_pct = row.get("boundary_pct")
 
         # ── Matchup Summary card ──
-        st.subheader(f"🏏 {batter} vs {bowler}")
+        st.subheader(f"{batter} vs {bowler}")
 
         c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
         c1.metric("Balls", format_number(balls_count))
@@ -186,13 +185,13 @@ if mode == "🏏 Batter vs Bowler":
         # ── Verdict badge ──
         balls_per_dismissal = balls_count / dismissals if dismissals > 0 else float("inf")
         if sr is not None and sr > 140 and balls_per_dismissal > 30:
-            verdict = "🟢 Batter Dominates"
+            verdict = "Batter Dominates"
             verdict_color = "#4ECDC4"
         elif sr is not None and sr < 110 and balls_per_dismissal < 20:
-            verdict = "🔴 Bowler Dominates"
+            verdict = "Bowler Dominates"
             verdict_color = "#FF6B6B"
         else:
-            verdict = "🟡 Even Contest"
+            verdict = "Even Contest"
             verdict_color = "#FFEAA7"
 
         st.markdown(
@@ -209,7 +208,7 @@ if mode == "🏏 Batter vs Bowler":
             st.divider()
 
             # ── Run scoring breakdown ──
-            st.subheader("📊 Run Scoring Breakdown")
+            st.subheader("Run Scoring Breakdown")
             run_counts = balls_df[balls_df["valid_ball"] == 1]["runs_batter"].value_counts().sort_index()
             run_labels = {0: "Dots", 1: "Singles", 2: "Twos", 3: "Threes", 4: "Fours", 6: "Sixes"}
             breakdown_df = pd.DataFrame({
@@ -224,12 +223,12 @@ if mode == "🏏 Batter vs Bowler":
                 text=breakdown_df["Count"], textposition="outside",
             ))
             fig.update_layout(title="Runs Scored per Ball", xaxis_title="", yaxis_title="Count")
-            st.plotly_chart(apply_ipl_style(fig, height=380, show_legend=False), use_container_width=True)
+            st.plotly_chart(apply_ipl_style(fig, height=380, show_legend=False), width='stretch')
 
             st.divider()
 
             # ── Phase-wise breakdown ──
-            st.subheader("🔄 Phase-wise Breakdown")
+            st.subheader("Phase-wise Breakdown")
             phase_df = balls_df[balls_df["valid_ball"] == 1].copy()
             if "match_phase" in phase_df.columns and not phase_df["match_phase"].isna().all():
                 phase_stats = phase_df.groupby("match_phase").agg(
@@ -244,14 +243,14 @@ if mode == "🏏 Batter vs Bowler":
                 phase_stats = phase_stats.sort_values("_order").drop(columns=["_order"])
                 phase_stats["Phase"] = phase_stats["Phase"].str.capitalize()
                 st.dataframe(phase_stats[["Phase", "Balls", "Runs", "SR", "Dismissals"]],
-                             use_container_width=True, hide_index=True)
+                             width='stretch', hide_index=True)
             else:
                 st.info("Phase data not available for this matchup.")
 
             st.divider()
 
             # ── Season-wise trend ──
-            st.subheader("📅 Season-wise Trend")
+            st.subheader("Season-wise Trend")
             valid_balls = balls_df[balls_df["valid_ball"] == 1].copy()
             season_stats = valid_balls.groupby("season").agg(
                 Balls=("runs_batter", "count"),
@@ -262,13 +261,13 @@ if mode == "🏏 Batter vs Bowler":
             season_stats["SR"] = (season_stats["Runs"] * 100.0 / season_stats["Balls"]).round(1)
             season_stats = season_stats.sort_values("Season")
             st.dataframe(season_stats[["Season", "Balls", "Runs", "SR", "Dismissals"]],
-                         use_container_width=True, hide_index=True)
+                         width='stretch', hide_index=True)
 
         # ── Dismissal details ──
         dismissals_df = load_matchup_dismissals(batter, bowler)
         if not dismissals_df.empty:
             st.divider()
-            st.subheader("🚫 Dismissal Details")
+            st.subheader("Dismissal Details")
             disp = dismissals_df.copy()
             disp["date"] = pd.to_datetime(disp["date"]).dt.strftime("%d %b %Y")
             disp.rename(columns={
@@ -278,7 +277,7 @@ if mode == "🏏 Batter vs Bowler":
             }, inplace=True)
             st.dataframe(
                 disp[["Date", "Season", "Venue", "Dismissal Type", "Inn", "Batting Team", "Match Winner"]],
-                use_container_width=True, hide_index=True,
+                width='stretch', hide_index=True,
             )
 
 
@@ -310,7 +309,7 @@ else:
         no_results = total_matches - a_wins - b_wins
 
         # ── Rivalry Summary ──
-        st.subheader(f"🏟️ {team_a} vs {team_b}")
+        st.subheader(f"{team_a} vs {team_b}")
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Total Matches", format_number(total_matches))
         m2.metric(f"{team_a} Wins", format_number(a_wins))
@@ -323,7 +322,7 @@ else:
         chart_left, chart_right = st.columns(2)
 
         with chart_left:
-            st.subheader("🥧 Win Distribution")
+            st.subheader("Win Distribution")
             win_data = pd.DataFrame({
                 "Team": [team_a, team_b] + (["No Result"] if no_results > 0 else []),
                 "Wins": [a_wins, b_wins] + ([no_results] if no_results > 0 else []),
@@ -337,10 +336,10 @@ else:
                          color="Team", color_discrete_map=color_map)
             fig.update_traces(textinfo="percent+label+value", textfont_size=12)
             st.plotly_chart(apply_ipl_style(fig, height=400, show_legend=False),
-                           use_container_width=True)
+                           width='stretch')
 
         with chart_right:
-            st.subheader("📈 Cumulative Wins Over Time")
+            st.subheader("Cumulative Wins Over Time")
             cum_df = h2h_df[["date", "match_won_by"]].copy()
             cum_df["date"] = pd.to_datetime(cum_df["date"])
             cum_df[team_a] = (cum_df["match_won_by"] == team_a).cumsum()
@@ -358,12 +357,12 @@ else:
                 line=dict(color=get_team_color(team_b), width=3),
             ))
             fig.update_layout(title="", xaxis_title="", yaxis_title="Cumulative Wins")
-            st.plotly_chart(apply_ipl_style(fig, height=400), use_container_width=True)
+            st.plotly_chart(apply_ipl_style(fig, height=400), width='stretch')
 
         st.divider()
 
         # ── Season-by-season results ──
-        st.subheader("📅 Season-by-Season Results")
+        st.subheader("Season-by-Season Results")
         season_h2h = h2h_df.groupby("season").agg(
             Matches=("match_id", "count"),
             **{f"{team_a} Wins": ("match_won_by", lambda x: (x == team_a).sum())},
@@ -386,12 +385,12 @@ else:
         scores_by_season.rename(columns={"season": "Season", "score": "Scores"}, inplace=True)
 
         season_display = season_h2h.merge(scores_by_season, on="Season", how="left")
-        st.dataframe(season_display, use_container_width=True, hide_index=True)
+        st.dataframe(season_display, width='stretch', hide_index=True)
 
         st.divider()
 
         # ── Venue-wise H2H ──
-        st.subheader("🏟️ Venue-wise Record")
+        st.subheader("Venue-wise Record")
         venue_h2h = h2h_df.groupby("venue").agg(
             Matches=("match_id", "count"),
             **{f"{team_a} Wins": ("match_won_by", lambda x: (x == team_a).sum())},
@@ -399,12 +398,12 @@ else:
         ).reset_index()
         venue_h2h.rename(columns={"venue": "Venue"}, inplace=True)
         venue_h2h = venue_h2h.sort_values("Matches", ascending=False)
-        st.dataframe(venue_h2h, use_container_width=True, hide_index=True)
+        st.dataframe(venue_h2h, width='stretch', hide_index=True)
 
         st.divider()
 
         # ── Toss impact ──
-        st.subheader("🪙 Toss Impact")
+        st.subheader("Toss Impact")
         toss_a = h2h_df[h2h_df["toss_winner"] == team_a]
         toss_b = h2h_df[h2h_df["toss_winner"] == team_b]
 
@@ -426,11 +425,11 @@ else:
         st.divider()
 
         # ── Top performers ──
-        st.subheader("⭐ Top Performers in this Rivalry")
+        st.subheader("Top Performers in this Rivalry")
         perf_left, perf_right = st.columns(2)
 
         with perf_left:
-            st.markdown("**🏏 Top Run Scorers**")
+            st.markdown("**Top Run Scorers**")
             top_bat = load_top_run_scorers(team_a, team_b)
             if not top_bat.empty:
                 top_bat_display = top_bat.rename(columns={
@@ -438,12 +437,12 @@ else:
                     "runs": "Runs", "balls": "Balls", "fours": "4s",
                     "sixes": "6s", "strike_rate": "SR",
                 })
-                st.dataframe(top_bat_display, use_container_width=True, hide_index=True)
+                st.dataframe(top_bat_display, width='stretch', hide_index=True)
             else:
                 st.info("No batting data available.")
 
         with perf_right:
-            st.markdown("**🎳 Top Wicket Takers**")
+            st.markdown("**Top Wicket Takers**")
             top_bowl = load_top_wicket_takers(team_a, team_b)
             if not top_bowl.empty:
                 top_bowl_display = top_bowl.rename(columns={
@@ -451,14 +450,14 @@ else:
                     "wickets": "Wkts", "runs_conceded": "Runs",
                     "balls_bowled": "Balls", "economy": "Econ",
                 })
-                st.dataframe(top_bowl_display, use_container_width=True, hide_index=True)
+                st.dataframe(top_bowl_display, width='stretch', hide_index=True)
             else:
                 st.info("No bowling data available.")
 
         st.divider()
 
         # ── Scoring patterns ──
-        st.subheader("📊 Scoring Patterns")
+        st.subheader("Scoring Patterns")
 
         # Compute first innings (target) and second innings (chase) stats
         first_inn = h2h_df.copy()
@@ -486,7 +485,7 @@ else:
         st.divider()
 
         # ── Close matches ──
-        st.subheader("🔥 Close Matches")
+        st.subheader("Close Matches")
         st.caption("Matches decided by ≤10 runs or ≤2 wickets")
 
         close = h2h_df[
@@ -515,7 +514,7 @@ else:
             }, inplace=True)
             st.dataframe(
                 close_display[["Date", "Season", "Venue", "Score", "Winner", "Margin", "Stage"]],
-                use_container_width=True, hide_index=True,
+                width='stretch', hide_index=True,
             )
         else:
             st.info("No close matches found in this rivalry.")

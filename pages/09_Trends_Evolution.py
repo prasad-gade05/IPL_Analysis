@@ -1,5 +1,5 @@
 """
-📈 Trends & Evolution — How IPL cricket has changed from 2008 to 2025.
+Trends & Evolution — How IPL cricket has changed from 2008 to 2025.
 """
 
 import streamlit as st
@@ -12,12 +12,6 @@ from src.visualizations.theme import (
 )
 from src.utils.constants import TEAM_COLORS, ALL_SEASONS, PHASE_COLORS
 from src.utils.formatters import format_number, format_strike_rate, format_economy
-
-st.set_page_config(
-    page_title="Trends & Evolution | IPL Analytics",
-    page_icon="📈",
-    layout="wide",
-)
 
 # ── Cached data loaders ────────────────────────────────────────────
 
@@ -225,7 +219,7 @@ def _phase_run_rates():
     return query("""
         SELECT season,
                match_phase,
-               ROUND(SUM(runs_total) * 6.0
+               ROUND(SUM((runs_batter + runs_extras)) * 6.0
                      / NULLIF(SUM(CASE WHEN valid_ball THEN 1 ELSE 0 END), 0),
                      2) AS run_rate
         FROM   balls
@@ -265,7 +259,7 @@ def _match_dynamics():
 # ── Page chrome ────────────────────────────────────────────────────
 
 st.markdown(big_number_style(), unsafe_allow_html=True)
-st.title("📈 Trends & Evolution")
+st.title("Trends & Evolution")
 st.caption(
     "How IPL cricket has evolved from 2008 to 2025 — scoring, batting, "
     "bowling, strategy, and match dynamics"
@@ -274,11 +268,11 @@ st.caption(
 # ── Tabs ───────────────────────────────────────────────────────────
 
 tab_scoring, tab_batting, tab_bowling, tab_strategy, tab_dynamics = st.tabs([
-    "🏏 Scoring Trends",
-    "🏸 Batting Style Evolution",
-    "🎯 Bowling Evolution",
-    "♟️ Strategy Evolution",
-    "⚡ Match Dynamics",
+    "Scoring Trends",
+    "Batting Style Evolution",
+    "Bowling Evolution",
+    "Strategy Evolution",
+    "Match Dynamics",
 ])
 
 # ── Tab 1: Scoring Trends ─────────────────────────────────────────
@@ -294,7 +288,7 @@ with tab_scoring:
         st.plotly_chart(
             styled_line(scoring, x="season", y="avg_aggregate",
                         title="Average Match Aggregate per Season"),
-            use_container_width=True,
+            width='stretch',
         )
 
         innings_melted = scoring.melt(
@@ -310,7 +304,7 @@ with tab_scoring:
             styled_line(innings_melted, x="season", y="Avg Score",
                         title="Average 1st vs 2nd Innings Score",
                         color="Innings"),
-            use_container_width=True,
+            width='stretch',
         )
 
         c1, c2 = st.columns(2)
@@ -318,13 +312,13 @@ with tab_scoring:
             st.plotly_chart(
                 styled_bar(extreme, x="season", y="scores_200_plus",
                            title="200+ Scores per Season"),
-                use_container_width=True,
+                width='stretch',
             )
         with c2:
             st.plotly_chart(
                 styled_bar(extreme, x="season", y="scores_sub_130",
                            title="Sub-130 Scores per Season"),
-                use_container_width=True,
+                width='stretch',
             )
 
         dist_plot = dist.copy()
@@ -332,7 +326,7 @@ with tab_scoring:
         fig_box = px.box(dist_plot, x="season", y="score",
                          title="Score Distribution Shift across Seasons")
         apply_ipl_style(fig_box, height=500)
-        st.plotly_chart(fig_box, use_container_width=True)
+        st.plotly_chart(fig_box, width='stretch')
 
 # ── Tab 2: Batting Style Evolution ─────────────────────────────────
 
@@ -345,7 +339,7 @@ with tab_batting:
         st.plotly_chart(
             styled_line(batting, x="season", y="avg_strike_rate",
                         title="Average Strike Rate per Season"),
-            use_container_width=True,
+            width='stretch',
         )
 
         c1, c2 = st.columns(2)
@@ -353,19 +347,19 @@ with tab_batting:
             st.plotly_chart(
                 styled_line(batting, x="season", y="sixes_per_match",
                             title="Sixes per Match"),
-                use_container_width=True,
+                width='stretch',
             )
         with c2:
             st.plotly_chart(
                 styled_line(batting, x="season", y="fours_per_match",
                             title="Fours per Match"),
-                use_container_width=True,
+                width='stretch',
             )
 
         st.plotly_chart(
             styled_line(batting, x="season", y="dot_ball_pct",
                         title="Dot Ball % per Season"),
-            use_container_width=True,
+            width='stretch',
         )
 
         batting = batting.copy()
@@ -393,7 +387,7 @@ with tab_batting:
             category_orders={"Source": ["Running", "Fours", "Sixes"]},
         )
         apply_ipl_style(fig_comp, height=500)
-        st.plotly_chart(fig_comp, use_container_width=True)
+        st.plotly_chart(fig_comp, width='stretch')
 
 # ── Tab 3: Bowling Evolution ──────────────────────────────────────
 
@@ -411,13 +405,13 @@ with tab_bowling:
             st.plotly_chart(
                 styled_line(bowling, x="season", y="avg_economy",
                             title="Average Economy Rate per Season"),
-                use_container_width=True,
+                width='stretch',
             )
         with c2:
             st.plotly_chart(
                 styled_line(bowling, x="season", y="wickets_per_match",
                             title="Wickets per Match"),
-                use_container_width=True,
+                width='stretch',
             )
 
         if not dismissals.empty:
@@ -432,7 +426,7 @@ with tab_bowling:
                 category_orders={"dismissal_type": type_order},
             )
             apply_ipl_style(fig_dismiss, height=500)
-            st.plotly_chart(fig_dismiss, use_container_width=True)
+            st.plotly_chart(fig_dismiss, width='stretch')
 
         c1, c2 = st.columns(2)
         with c1:
@@ -440,14 +434,14 @@ with tab_bowling:
                 st.plotly_chart(
                     styled_line(death_econ, x="season", y="death_economy",
                                 title="Death Over Economy (Overs 16–20)"),
-                    use_container_width=True,
+                    width='stretch',
                 )
         with c2:
             if not maidens.empty:
                 st.plotly_chart(
                     styled_bar(maidens, x="season", y="maiden_overs",
                                title="Maiden Overs per Season"),
-                    use_container_width=True,
+                    width='stretch',
                 )
 
 # ── Tab 4: Strategy Evolution ─────────────────────────────────────
@@ -462,7 +456,7 @@ with tab_strategy:
         st.plotly_chart(
             styled_line(strategy, x="season", y="pct_field_first",
                         title="% Teams Choosing to Field First after Toss"),
-            use_container_width=True,
+            width='stretch',
         )
 
         c1, c2 = st.columns(2)
@@ -470,13 +464,13 @@ with tab_strategy:
             st.plotly_chart(
                 styled_line(strategy, x="season", y="bat_first_win_pct",
                             title="Bat-First Win % per Season"),
-                use_container_width=True,
+                width='stretch',
             )
         with c2:
             st.plotly_chart(
                 styled_line(strategy, x="season", y="chase_win_pct",
                             title="Chasing Success Rate per Season"),
-                use_container_width=True,
+                width='stretch',
             )
 
         if not phases.empty:
@@ -490,7 +484,7 @@ with tab_strategy:
             st.plotly_chart(
                 styled_line(pp, x="season", y="pp_rr",
                             title="Powerplay Run Rate per Season"),
-                use_container_width=True,
+                width='stretch',
             )
 
             accel = pp.merge(death, on="season", how="inner")
@@ -498,7 +492,7 @@ with tab_strategy:
             st.plotly_chart(
                 styled_line(accel, x="season", y="acceleration",
                             title="Death Over Acceleration (Death RR ÷ PP RR)"),
-                use_container_width=True,
+                width='stretch',
             )
 
 # ── Tab 5: Match Dynamics ─────────────────────────────────────────
@@ -513,7 +507,7 @@ with tab_dynamics:
             styled_line(dynamics, x="season", y="close_match_pct",
                         title="Close Matches % per Season "
                               "(Won by ≤10 Runs or ≤2 Wickets)"),
-            use_container_width=True,
+            width='stretch',
         )
 
         c1, c2 = st.columns(2)
@@ -521,17 +515,17 @@ with tab_dynamics:
             st.plotly_chart(
                 styled_bar(dynamics, x="season", y="super_over_count",
                            title="Super Overs per Season"),
-                use_container_width=True,
+                width='stretch',
             )
         with c2:
             st.plotly_chart(
                 styled_bar(dynamics, x="season", y="dls_matches",
                            title="DLS-Affected Matches per Season"),
-                use_container_width=True,
+                width='stretch',
             )
 
         st.plotly_chart(
             styled_line(dynamics, x="season", y="duration_days",
                         title="Season Duration (Days)"),
-            use_container_width=True,
+            width='stretch',
         )

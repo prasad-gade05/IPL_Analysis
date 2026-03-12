@@ -1,5 +1,5 @@
 """
-🔍 Explorer — Free-form custom query builder for power users.
+Explorer — Free-form custom query builder for power users.
 Build dynamic queries across all IPL datasets with interactive filters,
 auto-generated charts, and one-click preset queries.
 """
@@ -13,11 +13,6 @@ from src.utils.constants import ALL_SEASONS
 from src.utils.formatters import format_number
 
 # ─── Page Config ────────────────────────────────────────────────────────
-st.set_page_config(
-    page_title="Explorer | IPL Analytics",
-    page_icon="🔍",
-    layout="wide",
-)
 st.markdown(big_number_style(), unsafe_allow_html=True)
 
 # ─── Cached helpers ─────────────────────────────────────────────────────
@@ -81,7 +76,7 @@ def get_view_sample(view_name: str) -> pd.DataFrame:
 # ─── Preset query definitions ──────────────────────────────────────────
 
 PRESET_QUERIES: dict[str, dict] = {
-    "🏏 Top 10 All-Time Run Scorers": {
+    "Top 10 All-Time Run Scorers": {
         "sql": """
             SELECT batter AS Player,
                    SUM(runs) AS Runs,
@@ -99,7 +94,7 @@ PRESET_QUERIES: dict[str, dict] = {
         "x": "Player",
         "y": "Runs",
     },
-    "💥 1000+ Runs & 100+ Sixes": {
+    "1000+ Runs & 100+ Sixes": {
         "sql": """
             SELECT batter AS Player,
                    SUM(runs) AS Runs,
@@ -115,7 +110,7 @@ PRESET_QUERIES: dict[str, dict] = {
         "x": "Player",
         "y": "Sixes",
     },
-    "😱 200+ Scores That Lost": {
+    "200+ Scores That Lost": {
         "sql": """
             SELECT m.match_id, m.season AS Season, m.venue AS Venue,
                    m.team1 AS Team1, m.team1_score AS T1_Score,
@@ -130,13 +125,13 @@ PRESET_QUERIES: dict[str, dict] = {
         "x": "",
         "y": "",
     },
-    "🎯 Best Death Economy (min 200 balls)": {
+    "Best Death Economy (min 200 balls)": {
         "sql": """
             SELECT b.bowler AS Bowler,
                    COUNT(*) AS Balls,
-                   SUM(b.runs_total) AS Runs,
+                   SUM((b.runs_batter + b.runs_extras)) AS Runs,
                    SUM(CASE WHEN b.player_out IS NOT NULL THEN 1 ELSE 0 END) AS Wickets,
-                   ROUND(SUM(b.runs_total) * 6.0 / COUNT(*), 2) AS Economy
+                   ROUND(SUM((b.runs_batter + b.runs_extras)) * 6.0 / COUNT(*), 2) AS Economy
             FROM balls b
             WHERE b.match_phase = 'death' AND b.valid_ball = true
             GROUP BY b.bowler
@@ -148,7 +143,7 @@ PRESET_QUERIES: dict[str, dict] = {
         "x": "Bowler",
         "y": "Economy",
     },
-    "🌍 Players for 5+ Teams": {
+    "Players for 5+ Teams": {
         "sql": """
             SELECT batter AS Player,
                    COUNT(DISTINCT batting_team) AS Teams,
@@ -163,7 +158,7 @@ PRESET_QUERIES: dict[str, dict] = {
         "x": "Player",
         "y": "Teams",
     },
-    "🤝 Highest Partnership Stands": {
+    "Highest Partnership Stands": {
         "sql": """
             SELECT p.batting_partners AS Partners,
                    p.runs AS Runs,
@@ -179,7 +174,7 @@ PRESET_QUERIES: dict[str, dict] = {
         "x": "Partners",
         "y": "Runs",
     },
-    "💸 Most Expensive Overs (20+ runs)": {
+    "Most Expensive Overs (20+ runs)": {
         "sql": """
             SELECT b.bowler AS Bowler,
                    b.batter AS Batter,
@@ -187,11 +182,11 @@ PRESET_QUERIES: dict[str, dict] = {
                    b.over AS Over_No,
                    b.season AS Season,
                    b.venue AS Venue,
-                   SUM(b.runs_total) AS Over_Runs
+                   SUM((b.runs_batter + b.runs_extras)) AS Over_Runs
             FROM balls b
             GROUP BY b.match_id, b.innings, b.over,
                      b.bowler, b.batter, b.batting_team, b.season, b.venue
-            HAVING SUM(b.runs_total) >= 20
+            HAVING SUM((b.runs_batter + b.runs_extras)) >= 20
             ORDER BY Over_Runs DESC
             LIMIT 20
         """,
@@ -199,7 +194,7 @@ PRESET_QUERIES: dict[str, dict] = {
         "x": "Bowler",
         "y": "Over_Runs",
     },
-    "⚡ Super Over Results": {
+    "Super Over Results": {
         "sql": """
             SELECT m.match_id, m.season AS Season,
                    m.team1 AS Team1, m.team1_score AS T1_Score,
@@ -519,15 +514,15 @@ def _build_ball_query(
     where_clause = " AND ".join(where_parts)
 
     valid_sort_cols = {
-        "runs_total", "over", "ball", "season", "runs_batter",
+        "(runs_batter + runs_extras)", "over", "ball", "season", "runs_batter",
     }
     if sort_col not in valid_sort_cols:
-        sort_col = "runs_total"
+        sort_col = "(runs_batter + runs_extras)"
 
     sql = (
         "SELECT match_id, season, innings, over, ball, "
         "batter, bowler, batting_team, bowling_team, "
-        "runs_batter, runs_total, is_four, is_six, is_dot, "
+        "runs_batter, (runs_batter + runs_extras), is_four, is_six, is_dot, "
         "wicket_kind, player_out, match_phase, venue "
         f"FROM balls "
         f"WHERE {where_clause} "
@@ -596,7 +591,7 @@ def _auto_chart(df: pd.DataFrame, group_by: str, entity_type: str):
         return
 
     apply_ipl_style(fig, height=450)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
 
 def _show_summary_stats(df: pd.DataFrame):
@@ -608,16 +603,16 @@ def _show_summary_stats(df: pd.DataFrame):
     stats.columns = ["Count", "Mean", "Min", "Median", "Max"]
     stats["Mean"] = stats["Mean"].round(2)
     stats["Median"] = stats["Median"].round(2)
-    st.dataframe(stats, use_container_width=True)
+    st.dataframe(stats, width='stretch')
 
 
 # ─── Page UI ────────────────────────────────────────────────────────────
 
-st.title("🔍 Explorer")
+st.title("Explorer")
 st.caption("Power-user query builder — slice and dice IPL data with custom filters, presets, and instant charts.")
 
 # ── Preset Queries ──────────────────────────────────────────────────────
-st.subheader("⚡ Quick Presets")
+st.subheader("Quick Presets")
 
 preset_names = list(PRESET_QUERIES.keys())
 cols = st.columns(4)
@@ -625,13 +620,13 @@ preset_clicked: str | None = None
 
 for i, name in enumerate(preset_names):
     with cols[i % 4]:
-        if st.button(name, key=f"preset_{i}", use_container_width=True):
+        if st.button(name, key=f"preset_{i}", width='stretch'):
             preset_clicked = name
 
 if preset_clicked:
     preset = PRESET_QUERIES[preset_clicked]
     st.markdown(f"### {preset_clicked}")
-    with st.expander("📜 SQL Query", expanded=False):
+    with st.expander("SQL Query", expanded=False):
         st.code(preset["sql"].strip(), language="sql")
 
     try:
@@ -649,13 +644,13 @@ if preset_clicked:
                     text_auto=True,
                 )
                 apply_ipl_style(fig, height=max(400, len(chart_df) * 28))
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
 
-            st.dataframe(preset_df, use_container_width=True, hide_index=True)
+            st.dataframe(preset_df, width='stretch', hide_index=True)
 
             csv = preset_df.to_csv(index=False)
             st.download_button(
-                "📥 Download CSV",
+                "Download CSV",
                 csv,
                 file_name="explorer_preset_results.csv",
                 mime="text/csv",
@@ -667,7 +662,7 @@ if preset_clicked:
     st.divider()
 
 # ── Custom Query Builder ────────────────────────────────────────────────
-st.subheader("🛠️ Custom Query Builder")
+st.subheader("Custom Query Builder")
 
 entity_type = st.radio(
     "Select entity type",
@@ -788,11 +783,11 @@ with st.form("query_builder_form"):
             over_end = st.number_input("Over to", 1, 20, 20, key="over_end")
         sort_by = st.selectbox(
             "Sort by",
-            ["runs_total", "runs_batter", "over", "season"],
+            ["(runs_batter + runs_extras)", "runs_batter", "over", "season"],
             key="bbb_sort",
         )
 
-    submitted = st.form_submit_button("🔍 Run Query", use_container_width=True, type="primary")
+    submitted = st.form_submit_button("Run Query", width='stretch', type="primary")
 
 # ── Execute query after form submission ─────────────────────────────────
 if submitted:
@@ -826,7 +821,7 @@ if submitted:
                 sel_phases, (int(over_start), int(over_end)), sort_by, limit,
             )
 
-        with st.expander("📜 Generated SQL", expanded=False):
+        with st.expander("Generated SQL", expanded=False):
             st.code(sql_to_run.strip(), language="sql")
             if sql_params:
                 st.caption(f"Parameters: `{sql_params}`")
@@ -836,7 +831,7 @@ if submitted:
         if result_df.empty:
             st.warning("No results found. Try broadening your filters.")
         else:
-            st.success(f"✅ {format_number(len(result_df))} rows returned")
+            st.success(f"{format_number(len(result_df))} rows returned")
 
             # Summary metrics
             m1, m2, m3, m4 = st.columns(4)
@@ -853,16 +848,16 @@ if submitted:
                 _auto_chart(result_df, current_group_by, entity_type)
 
             # Result table
-            st.dataframe(result_df, use_container_width=True, hide_index=True)
+            st.dataframe(result_df, width='stretch', hide_index=True)
 
             # Summary statistics
-            with st.expander("📊 Summary Statistics"):
+            with st.expander("Summary Statistics"):
                 _show_summary_stats(result_df)
 
             # Export
             csv = result_df.to_csv(index=False)
             st.download_button(
-                "📥 Download Results as CSV",
+                "Download Results as CSV",
                 csv,
                 file_name="explorer_results.csv",
                 mime="text/csv",
@@ -875,7 +870,7 @@ if submitted:
 
 # ── Data Dictionary ─────────────────────────────────────────────────────
 st.divider()
-st.subheader("📖 Data Dictionary")
+st.subheader("Data Dictionary")
 
 with st.expander("Browse available views and their schemas", expanded=False):
     selected_view = st.selectbox(
@@ -891,13 +886,13 @@ with st.expander("Browse available views and their schemas", expanded=False):
     with tab_schema:
         try:
             col_df = get_view_columns(selected_view)
-            st.dataframe(col_df, use_container_width=True, hide_index=True)
+            st.dataframe(col_df, width='stretch', hide_index=True)
         except Exception as e:
             st.error(f"Could not load schema: {e}")
 
     with tab_sample:
         try:
             sample_df = get_view_sample(selected_view)
-            st.dataframe(sample_df, use_container_width=True, hide_index=True)
+            st.dataframe(sample_df, width='stretch', hide_index=True)
         except Exception as e:
             st.error(f"Could not load sample: {e}")

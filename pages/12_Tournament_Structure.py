@@ -1,5 +1,5 @@
 """
-🏆 Tournament Structure — How each IPL season was structured.
+Tournament Structure — How each IPL season was structured.
 """
 
 import streamlit as st
@@ -15,13 +15,8 @@ from src.visualizations.theme import (
 from src.utils.constants import TEAM_COLORS, ALL_SEASONS
 from src.utils.formatters import format_number
 
-st.set_page_config(
-    page_title="Tournament Structure | IPL Analytics",
-    page_icon="🏆",
-    layout="wide",
-)
 st.markdown(big_number_style(), unsafe_allow_html=True)
-st.title("🏆 Tournament Structure")
+st.title("Tournament Structure")
 st.caption("How each IPL season was structured — formats, standings, playoffs & fixtures.")
 
 # ──────────────────────────────────────────────
@@ -163,7 +158,7 @@ if 2025 in available_seasons:
     default_idx = available_seasons.index(2025)
 
 selected_season = st.selectbox(
-    "🗓️ Select Season",
+    "Select Season",
     options=available_seasons,
     index=default_idx,
     key="ts_season",
@@ -181,7 +176,7 @@ m = meta.iloc[0]
 # ══════════════════════════════════════════════
 
 st.divider()
-st.markdown("## 📋 Tournament Overview")
+st.markdown("## Tournament Overview")
 
 # Season identity card
 st.markdown(
@@ -189,15 +184,15 @@ st.markdown(
     <div style="background: linear-gradient(135deg, rgba(28,31,42,0.8), rgba(44,47,60,0.8));
                 border: 1px solid rgba(255,255,255,0.12); border-radius: 12px;
                 padding: 20px 28px; margin-bottom: 16px;">
-        <h2 style="margin:0 0 8px 0;">🏆 IPL {int(m['season'])}</h2>
+        <h2 style="margin:0 0 8px 0;">IPL {int(m['season'])}</h2>
         <p style="margin:4px 0; font-size:1.05rem;">
-            📅 <b>{m['start_date']}</b> → <b>{m['end_date']}</b>
-            &nbsp;|&nbsp; ⏱️ <b>{int(m['duration_days'])} days</b>
-            &nbsp;|&nbsp; 👥 <b>{int(m['num_teams'])} teams</b>
-            &nbsp;|&nbsp; 🏟️ <b>{int(m['total_matches'])} matches</b>
+            <b>{m['start_date']}</b> → <b>{m['end_date']}</b>
+            &nbsp;|&nbsp; <b>{int(m['duration_days'])} days</b>
+            &nbsp;|&nbsp; <b>{int(m['num_teams'])} teams</b>
+            &nbsp;|&nbsp; <b>{int(m['total_matches'])} matches</b>
         </p>
         <p style="margin:4px 0; font-size:1.15rem;">
-            🏆 Champion: <b style="color: {get_team_color(str(m['champion']))}">{m['champion']}</b>
+            Champion: <b style="color: {get_team_color(str(m['champion']))}">{m['champion']}</b>
         </p>
     </div>
     """,
@@ -206,15 +201,15 @@ st.markdown(
 
 # 6 metric cards
 c1, c2, c3, c4, c5, c6 = st.columns(6)
-c1.metric("🏏 Matches", format_number(m["total_matches"]))
-c2.metric("👥 Teams", format_number(m["num_teams"]))
-c3.metric("🏟️ Venues", format_number(m["num_venues"]))
-c4.metric("⏱️ Duration", f"{int(m['duration_days'])} days")
-c5.metric("⚡ Super Overs", format_number(m["has_super_over"]))
-c6.metric("🌧️ DLS Matches", format_number(m["dls_matches"]))
+c1.metric("Matches", format_number(m["total_matches"]))
+c2.metric("Teams", format_number(m["num_teams"]))
+c3.metric("Venues", format_number(m["num_venues"]))
+c4.metric("Duration", f"{int(m['duration_days'])} days")
+c5.metric("Super Overs", format_number(m["has_super_over"]))
+c6.metric("DLS Matches", format_number(m["dls_matches"]))
 
 # Timeline: matches per season with teams overlay
-st.subheader("📈 Season Timeline — Matches & Teams")
+st.subheader("Season Timeline — Matches & Teams")
 
 fig_timeline = go.Figure()
 
@@ -251,7 +246,7 @@ fig_timeline.update_layout(
     xaxis=dict(dtick=1),
 )
 apply_ipl_style(fig_timeline, height=420)
-st.plotly_chart(fig_timeline, use_container_width=True)
+st.plotly_chart(fig_timeline, width='stretch')
 
 
 # ══════════════════════════════════════════════
@@ -259,7 +254,7 @@ st.plotly_chart(fig_timeline, use_container_width=True)
 # ══════════════════════════════════════════════
 
 st.divider()
-st.markdown("## 📊 Points Table")
+st.markdown("## Points Table")
 
 pts = _points_table(selected_season)
 
@@ -281,10 +276,10 @@ else:
         {"NRR": "{:+.3f}", "Pos": "{:.0f}", "P": "{:.0f}",
          "W": "{:.0f}", "L": "{:.0f}", "NR": "{:.0f}", "Pts": "{:.0f}"}
     )
-    st.dataframe(styled_pts, use_container_width=True, hide_index=True, height=420)
+    st.dataframe(styled_pts, width='stretch', hide_index=True, height=420)
 
     # NRR horizontal bar chart
-    st.subheader("📊 Net Run Rate")
+    st.subheader("Net Run Rate")
 
     nrr_colors = [
         "#4CAF50" if v >= 0 else "#EF5350"
@@ -305,7 +300,7 @@ else:
                    zerolinecolor="rgba(255,255,255,0.3)", zerolinewidth=1),
     )
     apply_ipl_style(fig_nrr, height=max(350, len(pts) * 38), show_legend=False)
-    st.plotly_chart(fig_nrr, use_container_width=True)
+    st.plotly_chart(fig_nrr, width='stretch')
 
 
 # ══════════════════════════════════════════════
@@ -313,7 +308,7 @@ else:
 # ══════════════════════════════════════════════
 
 st.divider()
-st.markdown("## 🏆 Playoff Bracket")
+st.markdown("## Playoff Bracket")
 
 playoffs = _playoff_matches(selected_season)
 
@@ -329,8 +324,8 @@ else:
         stage = row["stage"]
 
         is_final = stage == "Final"
-        icon = "🏆" if is_final else "⚡"
-        extra = " — 🏆 Champion!" if is_final else ""
+        icon = "" if is_final else ""
+        extra = " — Champion!" if is_final else ""
 
         return f"""
         <div style="background: linear-gradient(135deg, rgba(28,31,42,0.7), rgba(44,47,60,0.7));
@@ -343,7 +338,7 @@ else:
                 <b style="color:{get_team_color(t2)}">{t2}</b> ({s2})
             </p>
             <p style="margin:2px 0; font-size:1rem;">
-                🏅 Winner: <b style="color:{winner_color}">{winner}</b>{extra}
+                Winner: <b style="color:{winner_color}">{winner}</b>{extra}
             </p>
         </div>
         """
@@ -366,12 +361,12 @@ else:
 
     # If partial data, also show as table
     if len(playoffs) < 3:
-        st.caption("⚠️ Partial playoff data — showing available results as table.")
+        st.caption("Partial playoff data — showing available results as table.")
         po_display = playoffs[["stage", "team1", "team2", "team1_score", "team1_wickets",
                                "team2_score", "team2_wickets", "match_won_by"]].copy()
         po_display.columns = ["Stage", "Team 1", "Team 2", "T1 Score", "T1 Wkts",
                                "T2 Score", "T2 Wkts", "Winner"]
-        st.dataframe(po_display, use_container_width=True, hide_index=True)
+        st.dataframe(po_display, width='stretch', hide_index=True)
 
 
 # ══════════════════════════════════════════════
@@ -379,7 +374,7 @@ else:
 # ══════════════════════════════════════════════
 
 st.divider()
-st.markdown("## 📈 Season Comparison")
+st.markdown("## Season Comparison")
 
 comp = _season_comparison()
 
@@ -411,21 +406,21 @@ else:
         return [""] * len(row)
 
     styled_comp = table_df.style.apply(_highlight_selected, axis=1)
-    st.dataframe(styled_comp, use_container_width=True, hide_index=True, height=450)
+    st.dataframe(styled_comp, width='stretch', hide_index=True, height=450)
 
     # Two charts side by side
     col_a, col_b = st.columns(2)
 
     with col_a:
-        st.subheader("⏱️ Season Duration Trend")
+        st.subheader("Season Duration Trend")
         fig_dur = styled_line(
             meta_all, x="season", y="duration_days",
             title="Duration (days) per Season", height=400,
         )
-        st.plotly_chart(fig_dur, use_container_width=True)
+        st.plotly_chart(fig_dur, width='stretch')
 
     with col_b:
-        st.subheader("🎯 Competitiveness Index")
+        st.subheader("Competitiveness Index")
         ci = _competitiveness_index()
         if not ci.empty:
             ci["win_pct_std"] = ci["win_pct_std"].round(2)
@@ -433,12 +428,12 @@ else:
                 ci, x="season", y="win_pct_std",
                 title="Std Dev of Win% (lower = more competitive)", height=400,
             )
-            st.plotly_chart(fig_ci, use_container_width=True)
+            st.plotly_chart(fig_ci, width='stretch')
         else:
             st.info("Not enough data for competitiveness index.")
 
     # Venue distribution heatmap
-    st.subheader("🏟️ Venue × Season Heatmap")
+    st.subheader("Venue × Season Heatmap")
     vsm = _venue_season_matrix()
     if not vsm.empty:
         pivot = vsm.pivot_table(
@@ -463,7 +458,7 @@ else:
             yaxis=dict(title="", autorange="reversed"),
         )
         apply_ipl_style(fig_hm, height=max(500, len(pivot) * 24), show_legend=False)
-        st.plotly_chart(fig_hm, use_container_width=True)
+        st.plotly_chart(fig_hm, width='stretch')
     else:
         st.info("No venue data available for heatmap.")
 
@@ -473,7 +468,7 @@ else:
 # ══════════════════════════════════════════════
 
 st.divider()
-st.markdown("## 🏟️ Fixture Analysis")
+st.markdown("## Fixture Analysis")
 
 # Venue match distribution for selected season
 venue_dist = _venue_distribution(selected_season)
@@ -481,17 +476,17 @@ venue_dist = _venue_distribution(selected_season)
 if venue_dist.empty:
     st.info(f"No fixture data for {selected_season}.")
 else:
-    st.subheader(f"📍 Venue Match Distribution — {selected_season}")
+    st.subheader(f"Venue Match Distribution — {selected_season}")
     fig_vd = styled_bar(
         venue_dist, x="venue", y="matches",
         title=f"Matches per Venue in {selected_season}",
         height=420,
     )
     fig_vd.update_layout(xaxis_tickangle=-45)
-    st.plotly_chart(fig_vd, use_container_width=True)
+    st.plotly_chart(fig_vd, width='stretch')
 
     # Team × Venue matrix (home-away approximation)
-    st.subheader(f"📊 Team × Venue Matrix — {selected_season}")
+    st.subheader(f"Team × Venue Matrix — {selected_season}")
     tvm = _team_venue_matrix(selected_season)
 
     if not tvm.empty:
@@ -518,6 +513,6 @@ else:
             height=max(450, len(pivot_tv) * 36),
             show_legend=False,
         )
-        st.plotly_chart(fig_tv, use_container_width=True)
+        st.plotly_chart(fig_tv, width='stretch')
     else:
         st.info("No team-venue data available.")

@@ -1,5 +1,5 @@
 """
-👥 Team Profile — Complete franchise analytics.
+Team Profile — Complete franchise analytics.
 """
 
 import streamlit as st
@@ -23,12 +23,6 @@ from src.utils.formatters import (
     format_strike_rate,
     format_economy,
     format_average,
-)
-
-st.set_page_config(
-    page_title="Team Profile | IPL Analytics",
-    page_icon="👥",
-    layout="wide",
 )
 
 # ---------------------------------------------------------------------------
@@ -117,7 +111,7 @@ def get_stage_reached(team):
         """
         SELECT season,
                CASE max_stage
-                   WHEN 5 THEN '🏆 Champion'
+                   WHEN 5 THEN 'Champion'
                    WHEN 4 THEN 'Runner-up'
                    WHEN 3 THEN 'Playoff'
                    ELSE 'League'
@@ -548,7 +542,7 @@ def get_lowest_totals_defended(team, limit=5):
 # Page header & team selector
 # ---------------------------------------------------------------------------
 
-st.title("👥 Team Profile")
+st.title("Team Profile")
 st.caption("Complete franchise analytics — performance, players & match-ups.")
 
 teams = get_team_list()
@@ -595,7 +589,7 @@ with c2:
 with c3:
     st.metric(**metric_card("Win %", f"{s['overall_win_pct']:.1f}%"))
 with c4:
-    st.metric(**metric_card("🏆 Titles", str(titles)))
+    st.metric(**metric_card("Titles", str(titles)))
 with c5:
     st.metric(**metric_card("Finals", str(finals)))
 with c6:
@@ -614,12 +608,12 @@ st.divider()
 
 tab_overview, tab_batting, tab_bowling, tab_vs, tab_venues, tab_toss = st.tabs(
     [
-        "📊 Overview",
-        "🏏 Batting",
-        "🎳 Bowling",
-        "⚔️ vs Teams",
-        "🏟️ Venues",
-        "🪙 Toss & Chasing",
+        "Overview",
+        "Batting",
+        "Bowling",
+        "vs Teams",
+        "Venues",
+        "Toss & Chasing",
     ]
 )
 
@@ -636,7 +630,7 @@ with tab_overview:
         left, right = st.columns(2)
 
         with left:
-            st.subheader("📊 Season Record")
+            st.subheader("Season Record")
             melted = season_df.melt(
                 id_vars=["season"],
                 value_vars=["wins", "losses"],
@@ -657,10 +651,10 @@ with tab_overview:
             fig.update_layout(
                 barmode="group", xaxis_title="Season", yaxis_title="Matches"
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
         with right:
-            st.subheader("📈 Win % Trend")
+            st.subheader("Win % Trend")
             fig = styled_line(
                 season_df,
                 x="season",
@@ -669,7 +663,7 @@ with tab_overview:
             )
             fig.update_traces(line_color=team_color, marker_color=team_color)
             fig.update_layout(xaxis_title="Season", yaxis_title="Win %")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
         st.divider()
 
@@ -678,10 +672,10 @@ with tab_overview:
         left, right = st.columns(2)
 
         with left:
-            st.subheader("🏆 Season Journey")
+            st.subheader("Season Journey")
             if not stage_df.empty:
                 stage_color_map = {
-                    "🏆 Champion": "#FFD700",
+                    "Champion": "#FFD700",
                     "Runner-up": "#C0C0C0",
                     "Playoff": "#4ECDC4",
                     "League": "#888888",
@@ -702,12 +696,12 @@ with tab_overview:
                     ),
                     xaxis_title="Season",
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
             else:
                 st.info("No stage data available.")
 
         with right:
-            st.subheader("📈 Cumulative Wins")
+            st.subheader("Cumulative Wins")
             cum_df = season_df.copy()
             cum_df["cumulative_wins"] = cum_df["wins"].cumsum()
             fig = go.Figure()
@@ -728,12 +722,12 @@ with tab_overview:
                 yaxis_title="Total Wins",
             )
             apply_ipl_style(fig)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
         st.divider()
 
         # ---- Season-wise performance table ----
-        st.subheader("📋 Season-wise Performance")
+        st.subheader("Season-wise Performance")
         if not stage_df.empty:
             display_df = season_df.merge(
                 stage_df[["season", "stage_reached"]], on="season", how="left"
@@ -754,7 +748,7 @@ with tab_overview:
         )
         st.dataframe(
             display_df,
-            use_container_width=True,
+            width='stretch',
             hide_index=True,
             column_config={
                 "Win%": st.column_config.NumberColumn(format="%.1f%%"),
@@ -773,7 +767,7 @@ with tab_batting:
     left, right = st.columns(2)
 
     with left:
-        st.subheader("📈 Average Team Total by Season")
+        st.subheader("Average Team Total by Season")
         if not team_avg_df.empty:
             fig = go.Figure()
             fig.add_trace(
@@ -802,12 +796,12 @@ with tab_batting:
                 yaxis_title="Avg Score",
             )
             apply_ipl_style(fig)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("No batting data available.")
 
     with right:
-        st.subheader("🏏 Top 10 All-Time Run Scorers")
+        st.subheader("Top 10 All-Time Run Scorers")
         if not batters_df.empty:
             fig = styled_bar(
                 batters_df,
@@ -817,13 +811,13 @@ with tab_batting:
                 horizontal=True,
             )
             fig.update_traces(marker_color=team_color)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("No batting data available.")
 
     # ---- Batters detail table ----
     if not batters_df.empty:
-        st.subheader("📋 Top Run Scorers — Detail")
+        st.subheader("Top Run Scorers — Detail")
         bat_display = batters_df.rename(
             columns={
                 "batter": "Batter",
@@ -838,7 +832,7 @@ with tab_batting:
         )
         st.dataframe(
             bat_display,
-            use_container_width=True,
+            width='stretch',
             hide_index=True,
             column_config={
                 "SR": st.column_config.NumberColumn(format="%.1f"),
@@ -852,7 +846,7 @@ with tab_batting:
     left, right = st.columns(2)
 
     with left:
-        st.subheader("🔝 Highest Team Totals")
+        st.subheader("Highest Team Totals")
         high_df = get_highest_team_totals(selected_team)
         if not high_df.empty:
             high_display = high_df.rename(
@@ -863,12 +857,12 @@ with tab_batting:
                     "opponent": "vs Team",
                 }
             )[["Score", "Wkts", "vs Team", "Season"]]
-            st.dataframe(high_display, use_container_width=True, hide_index=True)
+            st.dataframe(high_display, width='stretch', hide_index=True)
         else:
             st.info("No data available.")
 
     with right:
-        st.subheader("🔻 Lowest Team Totals")
+        st.subheader("Lowest Team Totals")
         low_df = get_lowest_team_totals(selected_team)
         if not low_df.empty:
             low_display = low_df.rename(
@@ -879,7 +873,7 @@ with tab_batting:
                     "opponent": "vs Team",
                 }
             )[["Score", "Wkts", "vs Team", "Season"]]
-            st.dataframe(low_display, use_container_width=True, hide_index=True)
+            st.dataframe(low_display, width='stretch', hide_index=True)
         else:
             st.info("No data available.")
 
@@ -894,7 +888,7 @@ with tab_bowling:
     left, right = st.columns(2)
 
     with left:
-        st.subheader("📈 Avg Runs Conceded per Season")
+        st.subheader("Avg Runs Conceded per Season")
         if not conceded_df.empty:
             fig = styled_line(
                 conceded_df,
@@ -904,12 +898,12 @@ with tab_bowling:
             )
             fig.update_traces(line_color=team_color, marker_color=team_color)
             fig.update_layout(xaxis_title="Season", yaxis_title="Avg Conceded")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("No bowling data available.")
 
     with right:
-        st.subheader("🎳 Top 10 All-Time Wicket Takers")
+        st.subheader("Top 10 All-Time Wicket Takers")
         if not bowlers_df.empty:
             fig = styled_bar(
                 bowlers_df,
@@ -919,13 +913,13 @@ with tab_bowling:
                 horizontal=True,
             )
             fig.update_traces(marker_color=team_color)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("No bowling data available.")
 
     # ---- Bowlers detail table ----
     if not bowlers_df.empty:
-        st.subheader("📋 Top Wicket Takers — Detail")
+        st.subheader("Top Wicket Takers — Detail")
         bowl_display = bowlers_df.rename(
             columns={
                 "bowler": "Bowler",
@@ -937,7 +931,7 @@ with tab_bowling:
         )
         st.dataframe(
             bowl_display,
-            use_container_width=True,
+            width='stretch',
             hide_index=True,
             column_config={
                 "Economy": st.column_config.NumberColumn(format="%.2f"),
@@ -948,7 +942,7 @@ with tab_bowling:
     st.divider()
 
     # ---- Best bowling figures ----
-    st.subheader("🏆 Best Bowling Figures")
+    st.subheader("Best Bowling Figures")
     figures_df = get_best_bowling_figures(selected_team)
     if not figures_df.empty:
         fig_display = figures_df.copy()
@@ -968,7 +962,7 @@ with tab_bowling:
         )[["Bowler", "Figures", "Economy", "vs Team", "Season"]]
         st.dataframe(
             fig_display,
-            use_container_width=True,
+            width='stretch',
             hide_index=True,
             column_config={
                 "Economy": st.column_config.NumberColumn(format="%.2f"),
@@ -981,7 +975,7 @@ with tab_bowling:
 # VS TEAMS TAB
 # -------------------------------------------------------------------
 with tab_vs:
-    st.subheader("⚔️ Head-to-Head Record")
+    st.subheader("Head-to-Head Record")
     h2h_df = get_head_to_head(selected_team)
 
     if h2h_df.empty:
@@ -998,7 +992,7 @@ with tab_vs:
         )
         st.dataframe(
             h2h_display,
-            use_container_width=True,
+            width='stretch',
             hide_index=True,
             column_config={
                 "Win%": st.column_config.NumberColumn(format="%.1f%%"),
@@ -1008,7 +1002,7 @@ with tab_vs:
         st.divider()
 
         # ---- Win % bar chart (green > 50%, red < 50%) ----
-        st.subheader("📊 Head-to-Head Win %")
+        st.subheader("Head-to-Head Win %")
         chart_df = h2h_df.sort_values("win_pct", ascending=True).copy()
         bar_colors = [
             "#2ecc71" if pct >= 50 else "#e74c3c" for pct in chart_df["win_pct"]
@@ -1031,13 +1025,13 @@ with tab_vs:
         )
         fig.add_vline(x=50, line_dash="dash", line_color="white", opacity=0.5)
         apply_ipl_style(fig, height=max(400, len(chart_df) * 35))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
 # -------------------------------------------------------------------
 # VENUES TAB
 # -------------------------------------------------------------------
 with tab_venues:
-    st.subheader("🏟️ Performance by Venue")
+    st.subheader("Performance by Venue")
     venue_df = get_venue_performance(selected_team)
 
     if not venue_df.empty:
@@ -1052,7 +1046,7 @@ with tab_venues:
         )
         st.dataframe(
             venue_display,
-            use_container_width=True,
+            width='stretch',
             hide_index=True,
             column_config={
                 "Win%": st.column_config.NumberColumn(format="%.1f%%"),
@@ -1064,7 +1058,7 @@ with tab_venues:
     st.divider()
 
     # ---- Home vs Away ----
-    st.subheader("🏠 Home vs Away")
+    st.subheader("Home vs Away")
     ha_df = get_home_away_winpct(selected_team)
     if not ha_df.empty:
         home_row = ha_df[ha_df["location"] == "Home"]
@@ -1076,26 +1070,26 @@ with tab_venues:
                 h = home_row.iloc[0]
                 st.metric(
                     **metric_card(
-                        "🏠 Home Win%",
+                        "Home Win%",
                         f"{h['win_pct']:.1f}%",
                         help_text=f"{int(h['wins'])} wins in {int(h['matches'])} matches",
                     )
                 )
             else:
-                st.metric(**metric_card("🏠 Home Win%", "N/A"))
+                st.metric(**metric_card("Home Win%", "N/A"))
 
         with c2:
             if not away_row.empty:
                 a = away_row.iloc[0]
                 st.metric(
                     **metric_card(
-                        "✈️ Away Win%",
+                        "Away Win%",
                         f"{a['win_pct']:.1f}%",
                         help_text=f"{int(a['wins'])} wins in {int(a['matches'])} matches",
                     )
                 )
             else:
-                st.metric(**metric_card("✈️ Away Win%", "N/A"))
+                st.metric(**metric_card("Away Win%", "N/A"))
     else:
         st.info("No home/away data available.")
 
@@ -1107,7 +1101,7 @@ with tab_toss:
     left, right = st.columns(2)
 
     with left:
-        st.subheader("🪙 Toss Record")
+        st.subheader("Toss Record")
         toss_df = get_toss_record(selected_team)
         if not toss_df.empty:
             fig = styled_pie(
@@ -1116,12 +1110,12 @@ with tab_toss:
                 values="count",
                 title="Toss Wins vs Losses",
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("No toss data available.")
 
     with right:
-        st.subheader("📈 Toss Decision Trend")
+        st.subheader("Toss Decision Trend")
         decision_df = get_toss_decision_trend(selected_team)
         if not decision_df.empty:
             fig = styled_line(
@@ -1132,14 +1126,14 @@ with tab_toss:
             )
             fig.update_traces(line_color=team_color, marker_color=team_color)
             fig.update_layout(xaxis_title="Season", yaxis_title="Field First %")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("No toss decision data available.")
 
     st.divider()
 
     # ---- Batting first vs Chasing win % ----
-    st.subheader("📊 Batting First vs Chasing")
+    st.subheader("Batting First vs Chasing")
     bf_chase_df = get_bat_first_vs_chase_winpct(selected_team)
     if not bf_chase_df.empty:
         bat_row = bf_chase_df[bf_chase_df["scenario"] == "Batting First"]
@@ -1170,7 +1164,7 @@ with tab_toss:
     st.divider()
 
     # ---- Chase success by target range ----
-    st.subheader("🎯 Chase Success by Target Range")
+    st.subheader("Chase Success by Target Range")
     chase_df = get_chase_success_by_target(selected_team)
     if not chase_df.empty:
         fig = styled_bar(
@@ -1189,7 +1183,7 @@ with tab_toss:
             textposition="outside",
         )
         fig.update_layout(xaxis_title="Target Range", yaxis_title="Success %")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
     else:
         st.info("No chase data available.")
 
@@ -1199,7 +1193,7 @@ with tab_toss:
     left, right = st.columns(2)
 
     with left:
-        st.subheader("🏆 Highest Successful Chases")
+        st.subheader("Highest Successful Chases")
         chase_high_df = get_highest_successful_chases(selected_team)
         if not chase_high_df.empty:
             ch_display = chase_high_df.rename(
@@ -1212,12 +1206,12 @@ with tab_toss:
                     "margin": "Margin",
                 }
             )
-            st.dataframe(ch_display, use_container_width=True, hide_index=True)
+            st.dataframe(ch_display, width='stretch', hide_index=True)
         else:
             st.info("No successful chase data.")
 
     with right:
-        st.subheader("🛡️ Lowest Totals Defended")
+        st.subheader("Lowest Totals Defended")
         defend_df = get_lowest_totals_defended(selected_team)
         if not defend_df.empty:
             def_display = defend_df.rename(
@@ -1230,6 +1224,6 @@ with tab_toss:
                     "margin": "Margin",
                 }
             )
-            st.dataframe(def_display, use_container_width=True, hide_index=True)
+            st.dataframe(def_display, width='stretch', hide_index=True)
         else:
             st.info("No defence data available.")

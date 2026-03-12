@@ -1,5 +1,5 @@
 """
-🏆 Leaderboards — Every ranking across batting, bowling, teams, and all-rounders.
+Leaderboards — Every ranking across batting, bowling, teams, and all-rounders.
 """
 
 import streamlit as st
@@ -16,16 +16,12 @@ from src.utils.formatters import (
     format_average, format_overs,
 )
 
-st.set_page_config(
-    page_title="Leaderboards | IPL Analytics", page_icon="🏆", layout="wide",
-)
-
-st.title("🏆 Leaderboards")
+st.title("Leaderboards")
 st.markdown(big_number_style(), unsafe_allow_html=True)
 
-# ── Sidebar Filters ───────────────────────────────────────────────────
-with st.sidebar:
-    st.header("🔍 Filters")
+# ── Filters ────────────────────────────────────────────────────────────
+fc1, fc2 = st.columns([2, 1])
+with fc1:
     s1, s2 = st.slider(
         "Season range",
         min_value=min(ALL_SEASONS),
@@ -33,6 +29,7 @@ with st.sidebar:
         value=(min(ALL_SEASONS), max(ALL_SEASONS)),
         key="lb_season_range",
     )
+with fc2:
     teams_df = query("SELECT DISTINCT team FROM team_season ORDER BY team")
     team_options = ["All Teams"] + teams_df["team"].tolist()
     selected_team = st.selectbox("Team (optional)", team_options, key="lb_team")
@@ -528,7 +525,7 @@ def _expensive_overs(s1, s2, team=None):
 # ═══════════════════════════════════════════════════════════════════════
 
 tab_bat, tab_bowl, tab_team, tab_ar, tab_misc = st.tabs(
-    ["🏏 Batting", "🎳 Bowling", "👥 Teams", "⚡ All-Rounders", "📦 Miscellaneous"]
+    ["Batting", "Bowling", "Teams", "All-Rounders", "Miscellaneous"]
 )
 
 # ── BATTING TAB ────────────────────────────────────────────────────────
@@ -542,14 +539,14 @@ with tab_bat:
             df.sort_values("total_runs"), x="batter", y="total_runs",
             title="Top 15 Run Scorers", horizontal=True, height=500,
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
         display = df.rename(columns={
             "batter": "Player", "total_runs": "Runs", "innings": "Inn",
             "avg": "Avg", "sr": "SR", "hundreds": "100s",
             "fifties": "50s", "fours": "4s", "sixes": "6s",
         })[["Player", "Runs", "Inn", "Avg", "SR", "100s", "50s", "4s", "6s"]]
-        st.dataframe(display, use_container_width=True, hide_index=True)
+        st.dataframe(display, width='stretch', hide_index=True)
     else:
         st.info("No data for the selected filters.")
 
@@ -562,7 +559,7 @@ with tab_bat:
         df_c = _most_centuries(s1, s2, team_filter)
         if not df_c.empty:
             fig = styled_bar(df_c, x="batter", y="hundreds", title="Most 100s (Top 10)")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("No centuries in selected range.")
 
@@ -571,7 +568,7 @@ with tab_bat:
         df_f = _most_fifties(s1, s2, team_filter)
         if not df_f.empty:
             fig = styled_bar(df_f, x="batter", y="fifties", title="Most 50s (Top 10)")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("No fifties in selected range.")
 
@@ -587,7 +584,7 @@ with tab_bat:
                 "fours": "4s", "sixes": "6s", "sr": "SR",
                 "vs_team": "Vs", "venue": "Venue", "season": "Season",
             }),
-            use_container_width=True, hide_index=True,
+            width='stretch', hide_index=True,
         )
 
     st.divider()
@@ -603,7 +600,7 @@ with tab_bat:
                     "batter": "Player", "innings": "Inn", "total_runs": "Runs",
                     "dismissals": "Outs", "avg": "Avg", "sr": "SR",
                 })[["Player", "Inn", "Runs", "Outs", "Avg", "SR"]],
-                use_container_width=True, hide_index=True,
+                width='stretch', hide_index=True,
             )
         else:
             st.info("No qualifying batters.")
@@ -617,7 +614,7 @@ with tab_bat:
                     "batter": "Player", "total_balls": "Balls", "total_runs": "Runs",
                     "innings": "Inn", "sr": "SR", "avg": "Avg",
                 })[["Player", "Balls", "Runs", "Inn", "SR", "Avg"]],
-                use_container_width=True, hide_index=True,
+                width='stretch', hide_index=True,
             )
         else:
             st.info("No qualifying batters.")
@@ -633,7 +630,7 @@ with tab_bat:
             title="Batting Quality Index (min 500 balls)",
             size="total_runs", hover_name="batter", height=550,
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     st.divider()
 
@@ -647,7 +644,7 @@ with tab_bat:
                 df_6.sort_values("total_sixes"), x="batter", y="total_sixes",
                 title="Top 15 Six Hitters", horizontal=True,
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
     with c2:
         st.subheader("Most Career Fours")
@@ -657,7 +654,7 @@ with tab_bat:
                 df_4.sort_values("total_fours"), x="batter", y="total_fours",
                 title="Top 15 Four Hitters", horizontal=True,
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
     st.divider()
 
@@ -666,7 +663,7 @@ with tab_bat:
     df_d = _most_ducks(s1, s2, team_filter)
     if not df_d.empty:
         fig = styled_bar(df_d, x="batter", y="ducks", title="Most Ducks (Top 10)")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
 
 # ── BOWLING TAB ────────────────────────────────────────────────────────
@@ -680,7 +677,7 @@ with tab_bowl:
             df_w.sort_values("total_wickets"), x="bowler", y="total_wickets",
             title="Top 15 Wicket Takers", horizontal=True, height=500,
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
         disp = df_w.copy()
         disp["overs"] = disp["total_balls"].apply(format_overs)
@@ -689,7 +686,7 @@ with tab_bowl:
             "overs": "Overs", "economy": "Econ", "bowling_sr": "SR",
             "avg": "Avg", "dots": "Dots", "maidens": "Mdns",
         })[["Bowler", "Wkts", "Mat", "Overs", "Econ", "SR", "Avg", "Dots", "Mdns"]]
-        st.dataframe(disp, use_container_width=True, hide_index=True)
+        st.dataframe(disp, width='stretch', hide_index=True)
     else:
         st.info("No data for the selected filters.")
 
@@ -704,7 +701,7 @@ with tab_bowl:
                 "bowler": "Bowler", "figures": "Figures",
                 "vs_team": "Vs", "venue": "Venue", "season": "Season",
             })[["Bowler", "Figures", "Vs", "Venue", "Season"]],
-            use_container_width=True, hide_index=True,
+            width='stretch', hide_index=True,
         )
 
     st.divider()
@@ -722,7 +719,7 @@ with tab_bowl:
                     "bowler": "Bowler", "overs": "Overs", "total_runs": "Runs",
                     "total_wickets": "Wkts", "economy": "Econ",
                 })[["Bowler", "Overs", "Runs", "Wkts", "Econ"]],
-                use_container_width=True, hide_index=True,
+                width='stretch', hide_index=True,
             )
 
     with c2:
@@ -734,7 +731,7 @@ with tab_bowl:
                     "bowler": "Bowler", "total_wickets": "Wkts",
                     "total_runs": "Runs", "matches": "Mat", "avg": "Avg",
                 })[["Bowler", "Mat", "Wkts", "Runs", "Avg"]],
-                use_container_width=True, hide_index=True,
+                width='stretch', hide_index=True,
             )
 
     st.divider()
@@ -750,7 +747,7 @@ with tab_bowl:
                 "bowler": "Bowler", "total_wickets": "Wkts",
                 "overs": "Overs", "matches": "Mat", "bowling_sr": "SR",
             })[["Bowler", "Mat", "Wkts", "Overs", "SR"]],
-            use_container_width=True, hide_index=True,
+            width='stretch', hide_index=True,
         )
 
     st.divider()
@@ -763,7 +760,7 @@ with tab_bowl:
         if not df_m.empty:
             fig = styled_bar(df_m, x="bowler", y="total_maidens",
                              title="Top 10 Maiden Bowlers")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
     with c2:
         st.subheader("Most Dot Balls Bowled")
@@ -771,7 +768,7 @@ with tab_bowl:
         if not df_dt.empty:
             fig = styled_bar(df_dt, x="bowler", y="total_dots",
                              title="Top 15 Dot Ball Bowlers")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
 
 # ── TEAM TAB ───────────────────────────────────────────────────────────
@@ -787,7 +784,7 @@ with tab_team:
             title="Team Win %", color="team", color_map=color_map,
             horizontal=True, height=550,
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
     st.divider()
 
@@ -800,7 +797,7 @@ with tab_team:
             df_t, x="team", y="titles", title="IPL Championships",
             color="team", color_map=color_map,
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
     else:
         st.info("No title data in selected range.")
 
@@ -819,7 +816,7 @@ with tab_team:
                     "team": "Team", "score_wkt": "Score", "opponent": "Vs",
                     "venue": "Venue", "season": "Season",
                 })[["Team", "Score", "Vs", "Venue", "Season"]],
-                use_container_width=True, hide_index=True,
+                width='stretch', hide_index=True,
             )
 
     with c2:
@@ -833,7 +830,7 @@ with tab_team:
                     "team": "Team", "score_wkt": "Score", "opponent": "Vs",
                     "venue": "Venue", "season": "Season",
                 })[["Team", "Score", "Vs", "Venue", "Season"]],
-                use_container_width=True, hide_index=True,
+                width='stretch', hide_index=True,
             )
 
     st.divider()
@@ -849,7 +846,7 @@ with tab_team:
                 "team": "Team", "score_wkt": "Score", "target": "Target",
                 "opponent": "Vs", "venue": "Venue", "season": "Season",
             })[["Team", "Score", "Target", "Vs", "Venue", "Season"]],
-            use_container_width=True, hide_index=True,
+            width='stretch', hide_index=True,
         )
 
 
@@ -865,14 +862,14 @@ with tab_ar:
             title="All-Rounder Scatter",
             size="matches", hover_name="player", height=550,
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
         st.dataframe(
             df_ar.rename(columns={
                 "player": "Player", "runs": "Runs",
                 "wickets": "Wickets", "matches": "Matches",
             }),
-            use_container_width=True, hide_index=True,
+            width='stretch', hide_index=True,
         )
     else:
         st.info("No qualifying all-rounders for the selected range.")
@@ -885,7 +882,7 @@ with tab_ar:
     if not df_potm.empty:
         fig = styled_bar(df_potm, x="player", y="awards",
                          title="Top 15 POTM Winners")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
 
 # ── MISCELLANEOUS TAB ─────────────────────────────────────────────────
@@ -900,7 +897,7 @@ with tab_misc:
                 "innings": "Inn", "runs_conceded": "Runs", "fours": "4s",
                 "sixes": "6s", "season": "Season", "venue": "Venue",
             })[["Bowler", "Over", "Runs", "4s", "6s", "Vs Team", "Inn", "Venue", "Season"]],
-            use_container_width=True, hide_index=True,
+            width='stretch', hide_index=True,
         )
     else:
         st.info("No data for the selected filters.")

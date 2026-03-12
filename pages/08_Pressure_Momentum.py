@@ -1,5 +1,5 @@
 """
-🔥 Pressure & Momentum — Dot ball cascades, chase dynamics, clutch performances.
+Pressure & Momentum — Dot ball cascades, chase dynamics, clutch performances.
 """
 
 import streamlit as st
@@ -14,23 +14,17 @@ from src.visualizations.theme import (
 from src.utils.constants import TEAM_COLORS, ALL_SEASONS, PHASE_COLORS
 from src.utils.formatters import format_number, format_strike_rate
 
-st.set_page_config(
-    page_title="Pressure & Momentum | IPL Analytics", page_icon="🔥", layout="wide",
-)
-
-st.title("🔥 Pressure & Momentum")
+st.title("Pressure & Momentum")
 st.markdown(big_number_style(), unsafe_allow_html=True)
 
-# ── Sidebar Filters ───────────────────────────────────────────────────
-with st.sidebar:
-    st.header("🔍 Filters")
-    s1, s2 = st.slider(
-        "Season range",
-        min_value=min(ALL_SEASONS),
-        max_value=max(ALL_SEASONS),
-        value=(min(ALL_SEASONS), max(ALL_SEASONS)),
-        key="pm_season_range",
-    )
+# ── Filters ────────────────────────────────────────────────────────────
+s1, s2 = st.slider(
+    "Season range",
+    min_value=min(ALL_SEASONS),
+    max_value=max(ALL_SEASONS),
+    value=(min(ALL_SEASONS), max(ALL_SEASONS)),
+    key="pm_season_range",
+)
 
 # Outcome colors for dot sequence charts
 OUTCOME_COLORS = {
@@ -471,15 +465,15 @@ def _death_over_pressure_batting(s1, s2):
 # ═══════════════════════════════════════════════════════════════════════
 
 tab_dots, tab_chase, tab_partner, tab_clutch = st.tabs([
-    "🔴 Dot Ball Pressure",
-    "🏃 Chase Dynamics",
-    "🤝 Partnerships Under Pressure",
-    "🎯 Clutch Performances",
+    "Dot Ball Pressure",
+    "Chase Dynamics",
+    "Partnerships Under Pressure",
+    "Clutch Performances",
 ])
 
 # ── TAB 1: DOT BALL PRESSURE ─────────────────────────────────────────
 with tab_dots:
-    st.header("🔴 Dot Ball Pressure Analysis")
+    st.header("Dot Ball Pressure Analysis")
 
     # 1. Dot cascade stacked bar
     cascade_df = _dot_cascade(s1, s2)
@@ -502,7 +496,7 @@ with tab_dots:
             labels={"dots_label": "Consecutive Dots Before", "cnt": "Count"},
         )
         fig_cascade = apply_ipl_style(fig_cascade, height=480)
-        st.plotly_chart(fig_cascade, use_container_width=True)
+        st.plotly_chart(fig_cascade, width='stretch')
     else:
         st.info("No dot cascade data available for the selected range.")
 
@@ -516,7 +510,7 @@ with tab_dots:
         if not prob_df.empty:
             disp = prob_df[["dots", "total_balls", "wickets", "wicket_pct"]].copy()
             disp.columns = ["Consecutive Dots", "Total Balls", "Wickets", "Wicket %"]
-            st.dataframe(disp, use_container_width=True, hide_index=True)
+            st.dataframe(disp, width='stretch', hide_index=True)
 
     # 3. Team dot ball resilience
     with col_b:
@@ -527,7 +521,7 @@ with tab_dots:
                              "wicket_pct", "scoring_pct"]].copy()
             disp.columns = ["Team", "Pressure Balls", "Boundary %",
                             "Wicket %", "Scoring Shot %"]
-            st.dataframe(disp, use_container_width=True, hide_index=True)
+            st.dataframe(disp, width='stretch', hide_index=True)
 
     st.divider()
 
@@ -542,7 +536,7 @@ with tab_dots:
                                 "dot_pct", "avg_consec_dots"]].copy()
             disp.columns = ["Bowler", "Dot Balls", "Total Balls",
                             "Dot %", "Avg Consec Dots"]
-            st.dataframe(disp, use_container_width=True, hide_index=True)
+            st.dataframe(disp, width='stretch', hide_index=True)
 
     # 5. Phase-wise dot analysis
     with col_d:
@@ -564,12 +558,12 @@ with tab_dots:
                 xaxis_title="Phase",
             )
             fig_phase = apply_ipl_style(fig_phase, height=400, show_legend=False)
-            st.plotly_chart(fig_phase, use_container_width=True)
+            st.plotly_chart(fig_phase, width='stretch')
 
 
 # ── TAB 2: CHASE DYNAMICS ────────────────────────────────────────────
 with tab_chase:
-    st.header("🏃 Chase Dynamics")
+    st.header("Chase Dynamics")
 
     # 1. Chase success rate by target range
     chase_target_df = _chase_success_by_target(s1, s2)
@@ -591,7 +585,7 @@ with tab_chase:
             yaxis_range=[0, 100],
         )
         fig_chase = apply_ipl_style(fig_chase, height=450, show_legend=False)
-        st.plotly_chart(fig_chase, use_container_width=True)
+        st.plotly_chart(fig_chase, width='stretch')
 
     st.divider()
 
@@ -609,7 +603,7 @@ with tab_chase:
             xaxis_title="Season",
             yaxis_range=[0, 100],
         )
-        st.plotly_chart(fig_season, use_container_width=True)
+        st.plotly_chart(fig_season, width='stretch')
 
     st.divider()
 
@@ -624,7 +618,7 @@ with tab_chase:
                                   "venue", "margin_wickets"]].copy()
             disp.columns = ["Team", "Target", "Score", "Season",
                             "Venue", "Margin (wkts)"]
-            st.dataframe(disp, use_container_width=True, hide_index=True)
+            st.dataframe(disp, width='stretch', hide_index=True)
 
     # 4. Lowest totals defended
     with col_f:
@@ -636,7 +630,7 @@ with tab_chase:
                                   "season", "venue", "margin_runs"]].copy()
             disp.columns = ["Defending Team", "Total", "Chasing Team",
                             "Chaser Score", "Season", "Venue", "Margin (runs)"]
-            st.dataframe(disp, use_container_width=True, hide_index=True)
+            st.dataframe(disp, width='stretch', hide_index=True)
 
     st.divider()
 
@@ -654,7 +648,7 @@ with tab_chase:
             disp["SR"] = disp["SR"].apply(
                 lambda v: format_strike_rate(v) if pd.notna(v) else "—"
             )
-            st.dataframe(disp, use_container_width=True, hide_index=True)
+            st.dataframe(disp, width='stretch', hide_index=True)
 
     # 6. Teams best at chasing
     with col_h:
@@ -666,12 +660,12 @@ with tab_chase:
                                   "avg_chase_margin_wkts"]].copy()
             disp.columns = ["Team", "Chase Matches", "Wins",
                             "Chase Win %", "Avg Margin (wkts)"]
-            st.dataframe(disp, use_container_width=True, hide_index=True)
+            st.dataframe(disp, width='stretch', hide_index=True)
 
 
 # ── TAB 3: PARTNERSHIPS UNDER PRESSURE ───────────────────────────────
 with tab_partner:
-    st.header("🤝 Partnerships Under Pressure")
+    st.header("Partnerships Under Pressure")
 
     # 1. Partnership run rate by wicket number
     rr_wkt_df = _partnership_rr_by_wicket(s1, s2)
@@ -692,7 +686,7 @@ with tab_partner:
             xaxis=dict(dtick=1),
         )
         fig_rr = apply_ipl_style(fig_rr, height=420, show_legend=False)
-        st.plotly_chart(fig_rr, use_container_width=True)
+        st.plotly_chart(fig_rr, width='stretch')
 
     st.divider()
 
@@ -704,7 +698,7 @@ with tab_partner:
                             "team", "season", "wkts_down"]].copy()
         disp.columns = ["Partners", "Runs", "Balls", "RR",
                         "Team", "Season", "Wickets Down"]
-        st.dataframe(disp, use_container_width=True, hide_index=True)
+        st.dataframe(disp, width='stretch', hide_index=True)
     else:
         st.info("No recovery partnerships found for the selected range.")
 
@@ -721,7 +715,7 @@ with tab_partner:
                            "boundaries", "team", "season"]].copy()
             disp.columns = ["Partners", "Runs", "Balls", "RR",
                             "Boundaries", "Team", "Season"]
-            st.dataframe(disp, use_container_width=True, hide_index=True)
+            st.dataframe(disp, width='stretch', hide_index=True)
 
     # 4. Most impactful partnerships
     with col_j:
@@ -732,12 +726,12 @@ with tab_partner:
                               "impact_score", "team", "season"]].copy()
             disp.columns = ["Partners", "Runs", "Balls", "RR",
                             "Impact Score", "Team", "Season"]
-            st.dataframe(disp, use_container_width=True, hide_index=True)
+            st.dataframe(disp, width='stretch', hide_index=True)
 
 
 # ── TAB 4: CLUTCH PERFORMANCES ───────────────────────────────────────
 with tab_clutch:
-    st.header("🎯 Clutch Performances")
+    st.header("Clutch Performances")
 
     col_k, col_l = st.columns(2)
 
@@ -754,7 +748,7 @@ with tab_clutch:
             disp["SR"] = disp["SR"].apply(
                 lambda v: format_strike_rate(v) if pd.notna(v) else "—"
             )
-            st.dataframe(disp, use_container_width=True, hide_index=True)
+            st.dataframe(disp, width='stretch', hide_index=True)
 
     # 2. Playoff performance
     with col_l:
@@ -767,7 +761,7 @@ with tab_clutch:
             disp["SR"] = disp["SR"].apply(
                 lambda v: format_strike_rate(v) if pd.notna(v) else "—"
             )
-            st.dataframe(disp, use_container_width=True, hide_index=True)
+            st.dataframe(disp, width='stretch', hide_index=True)
 
     st.divider()
 
@@ -775,14 +769,14 @@ with tab_clutch:
 
     # 3. Final heroes
     with col_m:
-        st.subheader("🏆 Final — Player of the Match")
+        st.subheader("Final — Player of the Match")
         final_df = _final_heroes(s1, s2)
         if not final_df.empty:
             disp = final_df[["player", "winning_team", "season",
                              "team1_score", "team2_score", "venue"]].copy()
             disp.columns = ["Player", "Winning Team", "Season",
                             "1st Inn Score", "2nd Inn Score", "Venue"]
-            st.dataframe(disp, use_container_width=True, hide_index=True)
+            st.dataframe(disp, width='stretch', hide_index=True)
 
     # 4. Death over pressure batting
     with col_n:
@@ -796,4 +790,4 @@ with tab_clutch:
             disp["SR"] = disp["SR"].apply(
                 lambda v: format_strike_rate(v) if pd.notna(v) else "—"
             )
-            st.dataframe(disp, use_container_width=True, hide_index=True)
+            st.dataframe(disp, width='stretch', hide_index=True)

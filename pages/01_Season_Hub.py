@@ -1,5 +1,5 @@
 """
-📅 Season Hub — Complete story of a single IPL season.
+Season Hub — Complete story of a single IPL season.
 
 Points table, team performance, batting & bowling leaders, and match analysis
 all scoped to a single chosen season.
@@ -18,12 +18,6 @@ from src.utils.constants import TEAM_COLORS, ALL_SEASONS, STAGE_ORDER
 from src.utils.formatters import (
     format_number, format_strike_rate, format_economy,
     format_average, format_overs,
-)
-
-st.set_page_config(
-    page_title="Season Hub | IPL Analytics",
-    page_icon="📅",
-    layout="wide",
 )
 
 # ── Cached data loaders ────────────────────────────────────────────
@@ -307,7 +301,7 @@ def _avg_score_progression(season: int) -> pd.DataFrame:
 # ── Page chrome ────────────────────────────────────────────────────
 
 st.markdown(big_number_style(), unsafe_allow_html=True)
-st.title("📅 Season Hub")
+st.title("Season Hub")
 st.caption(
     "The complete story of a single IPL season — standings, stars, and storylines"
 )
@@ -316,7 +310,7 @@ st.caption(
 sel_col, _ = st.columns([1, 3])
 with sel_col:
     selected_season = st.selectbox(
-        "🗓️ Select Season",
+        "Select Season",
         options=ALL_SEASONS,
         index=len(ALL_SEASONS) - 1,
         key="season_hub_selector",
@@ -338,18 +332,18 @@ _so = query(
 )
 super_over_count = int(_so.iloc[0]["cnt"]) if not _so.empty else 0
 
-st.subheader(f"🏏 IPL {selected_season}")
+st.subheader(f"IPL {selected_season}")
 id_cols = st.columns(6)
 id_cols[0].metric("Total Matches", format_number(int(m.get("total_matches", 0))))
 id_cols[1].metric("Teams", int(m.get("num_teams", 0)))
-id_cols[2].metric("🏆 Champion", str(m.get("champion", "—")) or "—")
+id_cols[2].metric("Champion", str(m.get("champion", "—")) or "—")
 id_cols[3].metric("Duration", f"{int(m.get('duration_days', 0))} days")
 id_cols[4].metric("Super Overs", super_over_count)
 id_cols[5].metric("DLS Matches", int(m.get("dls_matches", 0)))
 
 dt1, dt2 = st.columns(2)
-dt1.caption(f"📅 Start: **{m.get('start_date', '—')}**")
-dt2.caption(f"📅 End: **{m.get('end_date', '—')}**")
+dt1.caption(f"Start: **{m.get('start_date', '—')}**")
+dt2.caption(f"End: **{m.get('end_date', '—')}**")
 
 st.divider()
 
@@ -357,11 +351,11 @@ st.divider()
 
 tab_pts, tab_team, tab_bat, tab_bowl, tab_match = st.tabs(
     [
-        "📊 Points Table",
-        "🏟️ Team Performance",
-        "🏏 Batting Leaders",
-        "🎳 Bowling Leaders",
-        "📈 Match Analysis",
+        "Points Table",
+        "Team Performance",
+        "Batting Leaders",
+        "Bowling Leaders",
+        "Match Analysis",
     ]
 )
 
@@ -397,9 +391,9 @@ with tab_pts:
             .format({"NRR": lambda v: f"{v:+.3f}" if pd.notna(v) else "—"})
         )
         st.dataframe(
-            styled_pts, use_container_width=True, hide_index=True, height=420
+            styled_pts, width='stretch', hide_index=True, height=420
         )
-        st.caption("🟢 Top 4 teams qualify for the playoffs")
+        st.caption("Top 4 teams qualify for the playoffs")
 
     # Bump chart – cumulative wins
     progression = _season_progression(selected_season)
@@ -430,7 +424,7 @@ with tab_pts:
             yaxis_title="Cumulative Wins",
             hovermode="closest",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
 # ── Team Performance Tab ──────────────────────────────────────────
 
@@ -481,7 +475,7 @@ with tab_team:
                 )
             fig.update_layout(barmode="stack")
             fig = apply_ipl_style(fig, height=450)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("Team performance data not available.")
 
@@ -511,7 +505,7 @@ with tab_team:
             )
             fig.update_layout(barmode="group", xaxis_tickangle=-45)
             fig = apply_ipl_style(fig, height=450)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("Team scoring data not available.")
 
@@ -521,7 +515,7 @@ with tab_bat:
     top_scorers = _top_run_scorers(selected_season)
 
     if not top_scorers.empty:
-        st.subheader("🏏 Top 10 Run Scorers")
+        st.subheader("Top 10 Run Scorers")
 
         chart_df = top_scorers.sort_values("total_runs", ascending=True)
         fig = styled_bar(
@@ -532,7 +526,7 @@ with tab_bat:
             horizontal=True,
             height=400,
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
         # Stats table
         disp = top_scorers[
@@ -548,14 +542,14 @@ with tab_bat:
         disp["SR"] = disp["SR"].apply(
             lambda v: format_strike_rate(v) if pd.notna(v) else "—"
         )
-        st.dataframe(disp, use_container_width=True, hide_index=True)
+        st.dataframe(disp, width='stretch', hide_index=True)
     else:
         st.info("Batting data not available for this season.")
 
     col_six, col_sr = st.columns(2)
 
     with col_six:
-        st.subheader("💥 Top Six Hitters")
+        st.subheader("Top Six Hitters")
         six_df = _top_six_hitters(selected_season)
         if not six_df.empty:
             chart_df = six_df.sort_values("total_sixes", ascending=True)
@@ -567,12 +561,12 @@ with tab_bat:
                 horizontal=True,
                 height=400,
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("No data available.")
 
     with col_sr:
-        st.subheader("⚡ Best Strike Rate (min 100 balls)")
+        st.subheader("Best Strike Rate (min 100 balls)")
         sr_df = _top_strike_rates(selected_season)
         if not sr_df.empty:
             disp = sr_df[
@@ -585,7 +579,7 @@ with tab_bat:
             disp["SR"] = disp["SR"].apply(
                 lambda v: format_strike_rate(v) if pd.notna(v) else "—"
             )
-            st.dataframe(disp, use_container_width=True, hide_index=True)
+            st.dataframe(disp, width='stretch', hide_index=True)
         else:
             st.info("No qualifying batters (min 100 balls).")
 
@@ -595,7 +589,7 @@ with tab_bowl:
     top_bowlers = _top_wicket_takers(selected_season)
 
     if not top_bowlers.empty:
-        st.subheader("🎳 Top 10 Wicket Takers")
+        st.subheader("Top 10 Wicket Takers")
 
         chart_df = top_bowlers.sort_values("total_wickets", ascending=True)
         fig = styled_bar(
@@ -606,7 +600,7 @@ with tab_bowl:
             horizontal=True,
             height=400,
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
         disp = top_bowlers[
             [
@@ -633,14 +627,14 @@ with tab_bowl:
         disp = disp[
             ["Bowler", "Inn", "Wkts", "Overs", "Runs", "Econ", "SR", "Maidens"]
         ]
-        st.dataframe(disp, use_container_width=True, hide_index=True)
+        st.dataframe(disp, width='stretch', hide_index=True)
     else:
         st.info("Bowling data not available for this season.")
 
     col_econ, col_fig = st.columns(2)
 
     with col_econ:
-        st.subheader("📉 Best Economy (min 50 balls)")
+        st.subheader("Best Economy (min 50 balls)")
         econ_df = _top_economy(selected_season)
         if not econ_df.empty:
             disp = econ_df[
@@ -663,12 +657,12 @@ with tab_bowl:
             disp = disp[
                 ["Bowler", "Inn", "Overs", "Wkts", "Runs", "Econ", "Maidens"]
             ]
-            st.dataframe(disp, use_container_width=True, hide_index=True)
+            st.dataframe(disp, width='stretch', hide_index=True)
         else:
             st.info("No qualifying bowlers (min 50 balls).")
 
     with col_fig:
-        st.subheader("🔥 Best Figures (3+ wickets)")
+        st.subheader("Best Figures (3+ wickets)")
         bf_df = _best_bowling_figures(selected_season)
         if not bf_df.empty:
             disp = bf_df.copy()
@@ -687,7 +681,7 @@ with tab_bowl:
                 columns={"bowler": "Bowler", "bowling_team": "Team"}
             )
             disp = disp[["Bowler", "Team", "Figures", "Overs", "Econ"]]
-            st.dataframe(disp, use_container_width=True, hide_index=True)
+            st.dataframe(disp, width='stretch', hide_index=True)
         else:
             st.info("No 3+ wicket hauls this season.")
 
@@ -697,7 +691,7 @@ with tab_match:
     col_toss, col_bf = st.columns([3, 2])
 
     with col_toss:
-        st.subheader("🪙 Toss Decisions")
+        st.subheader("Toss Decisions")
         toss = _toss_analysis(selected_season)
         if not toss.empty:
             fig = styled_pie(
@@ -706,12 +700,12 @@ with tab_match:
                 values="count",
                 title=f"Toss Decisions — IPL {selected_season}",
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("Toss data not available.")
 
     with col_bf:
-        st.subheader("🏏 Batting First vs Chasing")
+        st.subheader("Batting First vs Chasing")
         bf = _batting_first_stats(selected_season)
         if not bf.empty:
             row = bf.iloc[0]
@@ -747,13 +741,13 @@ with tab_match:
                     values="count",
                     title="Wins by Innings",
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
             else:
                 st.info("No decisive results recorded.")
         else:
             st.info("Match outcome data not available.")
 
-    st.subheader("📈 Average Score Progression")
+    st.subheader("Average Score Progression")
     score_prog = _avg_score_progression(selected_season)
     if not score_prog.empty:
         fig = go.Figure()
@@ -783,6 +777,6 @@ with tab_match:
             yaxis_title="Average Score per Innings",
             hovermode="x unified",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
     else:
         st.info("Score progression data not available.")

@@ -1,5 +1,5 @@
 """
-📋 Match Center — Ball-by-ball replay and analysis of any match.
+Match Center — Ball-by-ball replay and analysis of any match.
 
 Select any IPL match to view full scorecards, run-progression worm charts,
 partnership breakdowns, over-by-over heatmaps, and head-to-head match stats.
@@ -19,11 +19,6 @@ from src.utils.formatters import (
     format_number, format_strike_rate, format_economy, format_overs,
 )
 
-st.set_page_config(
-    page_title="Match Center | IPL Analytics",
-    page_icon="📋",
-    layout="wide",
-)
 st.markdown(big_number_style(), unsafe_allow_html=True)
 
 # ── Cached Data Loaders ──────────────────────────────────────────────────────
@@ -303,23 +298,16 @@ def render_header(match: pd.Series):
         parts.append(f"**{winner}** won")
         if pd.notna(margin_val) and pd.notna(margin_type):
             parts.append(f"by **{_safe_int(margin_val)}** {margin_type}")
-        if pd.notna(method) and method:
-            parts.append(f"({method})")
+        if pd.notna(method) and method and str(method).lower() not in ("", "na", "nan"):
+            method_display = str(method).upper().replace("_", " ")
+            if method_display not in ("NO DLS",):
+                parts.append(f"({method_display})")
         if is_so:
             parts.append("(Super Over)")
     else:
         parts.append("**No Result**")
 
-    flags: list[str] = []
-    if pd.notna(method) and method:
-        flags.append(f"🏷️ {method}")
-    if is_so:
-        flags.append("⚡ Super Over")
-
     result_line = " ".join(parts)
-    if flags:
-        result_line += " &nbsp;|&nbsp; " + " &nbsp;|&nbsp; ".join(flags)
-
     st.markdown(
         f"<div style='text-align:center;font-size:1.1rem'>{result_line}</div>",
         unsafe_allow_html=True,
@@ -327,30 +315,37 @@ def render_header(match: pd.Series):
 
     # ── Metadata row ──
     date_str = pd.to_datetime(match["date"]).strftime("%d %b %Y")
-    meta = [f"📅 {date_str}"]
+    meta_parts = []
+
+    meta_parts.append(date_str)
 
     venue = match.get("venue", "")
     city = match.get("city", "")
     if venue:
-        loc = f"🏟️ {venue}"
+        loc = str(venue)
         if pd.notna(city) and city:
             loc += f", {city}"
-        meta.append(loc)
+        meta_parts.append(loc)
 
     stage = match.get("stage", "")
     if pd.notna(stage) and stage:
-        meta.append(f"🏆 {stage}")
+        meta_parts.append(str(stage))
 
     tw = match.get("toss_winner", "")
     td = match.get("toss_decision", "")
     if pd.notna(tw) and tw:
-        meta.append(f"🪙 {tw} won toss, chose to {td}")
+        meta_parts.append(f"{tw} won toss, chose to {td}")
 
     potm = match.get("player_of_match", "")
     if pd.notna(potm) and potm:
-        meta.append(f"⭐ Player of the Match: **{potm}**")
+        meta_parts.append(f"Player of the Match: **{potm}**")
 
-    st.markdown(" &nbsp;|&nbsp; ".join(meta))
+    st.markdown(
+        "<div style='text-align:center; color:#aaa; font-size:0.9rem'>"
+        + " &nbsp;|&nbsp; ".join(meta_parts)
+        + "</div>",
+        unsafe_allow_html=True,
+    )
     st.divider()
 
 
@@ -383,7 +378,7 @@ def render_scorecard(match: pd.Series, balls_df: pd.DataFrame):
         if not bat.empty:
             st.dataframe(
                 bat,
-                use_container_width=True,
+                width='stretch',
                 hide_index=True,
                 column_config={
                     "SR": st.column_config.NumberColumn(format="%.2f"),
@@ -415,7 +410,7 @@ def render_scorecard(match: pd.Series, balls_df: pd.DataFrame):
         if not bowl.empty:
             st.dataframe(
                 bowl,
-                use_container_width=True,
+                width='stretch',
                 hide_index=True,
                 column_config={
                     "Econ": st.column_config.NumberColumn(format="%.2f"),
@@ -432,7 +427,7 @@ def render_scorecard(match: pd.Series, balls_df: pd.DataFrame):
     # Super-over innings (3, 4, …)
     super_innings = [i for i in all_innings if i > 2]
     if super_innings:
-        st.markdown("### ⚡ Super Over")
+        st.markdown("### Super Over")
         for inn_num in super_innings:
             sib = balls_df[balls_df["innings"] == inn_num]
             if sib.empty:
@@ -449,7 +444,7 @@ def render_scorecard(match: pd.Series, balls_df: pd.DataFrame):
                               "Extras", "Wicket", "Out"]
             detail["Wicket"] = detail["Wicket"].replace("not_out", "")
             detail["Out"] = detail["Out"].replace("none", "")
-            st.dataframe(detail, use_container_width=True, hide_index=True)
+            st.dataframe(detail, width='stretch', hide_index=True)
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -537,7 +532,7 @@ def render_worm(match: pd.Series, balls_df: pd.DataFrame):
         xaxis=dict(dtick=2, range=[-0.5, 21]),
     )
     apply_ipl_style(fig, height=500)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
     # ── Required Run Rate vs Current Run Rate (2nd innings) ──
     if 1 in innings_cum and 2 in innings_cum:
@@ -569,7 +564,7 @@ def render_worm(match: pd.Series, balls_df: pd.DataFrame):
                 xaxis=dict(dtick=2),
             )
             apply_ipl_style(fig_rr, height=400)
-            st.plotly_chart(fig_rr, use_container_width=True)
+            st.plotly_chart(fig_rr, width='stretch')
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -622,7 +617,7 @@ def render_partnerships(
             xaxis_title="Runs", yaxis=dict(showticklabels=False),
         )
         apply_ipl_style(fig, height=180, show_legend=False)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
         # ── How each partnership ended ──
         wickets_inn = (
@@ -661,7 +656,7 @@ def render_partnerships(
         if detail_rows:
             st.dataframe(
                 pd.DataFrame(detail_rows),
-                use_container_width=True,
+                width='stretch',
                 hide_index=True,
             )
 
@@ -736,10 +731,10 @@ def render_over_by_over(match: pd.Series, balls_df: pd.DataFrame):
         xaxis_title="Over", yaxis_title="",
     )
     apply_ipl_style(fig, height=280)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
     # ── Ball-by-ball detail (expandable) ──
-    st.markdown("#### 🔍 Ball-by-Ball Details")
+    st.markdown("#### Ball-by-Ball Details")
 
     available_innings = sorted(balls_df["innings"].unique())
     display_innings = [i for i in available_innings if i <= 2]
@@ -786,7 +781,7 @@ def render_over_by_over(match: pd.Series, balls_df: pd.DataFrame):
             for col, sentinel in [("Extra Type", "none"), ("Wicket", "not_out"), ("Out", "none")]:
                 if col in detail.columns:
                     detail[col] = detail[col].replace(sentinel, "").fillna("")
-            st.dataframe(detail, use_container_width=True, hide_index=True)
+            st.dataframe(detail, width='stretch', hide_index=True)
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -891,31 +886,33 @@ def render_match_stats(match: pd.Series, balls_df: pd.DataFrame):
 
 # ── Main Page Logic ───────────────────────────────────────────────────────────
 
-st.title("📋 Match Center")
+st.title("Match Center")
 
-# ── Sidebar: match selection ──
-with st.sidebar:
-    st.header("🔍 Match Selection")
+# ── Match Selection (on page, not sidebar) ──
+sel_col1, sel_col2 = st.columns([1, 3])
 
+with sel_col1:
     default_idx = ALL_SEASONS.index(2025) if 2025 in ALL_SEASONS else len(ALL_SEASONS) - 1
-    season = st.selectbox("Season", ALL_SEASONS, index=default_idx)
+    season = st.selectbox("Season", ALL_SEASONS, index=default_idx, key="mc_season")
 
-    matches_df = load_season_matches(int(season))
-    if matches_df.empty:
-        st.warning(f"No matches found for {season}.")
-        st.stop()
+matches_df = load_season_matches(int(season))
+if matches_df.empty:
+    st.warning(f"No matches found for {season}.")
+    st.stop()
 
-    # Build human-readable labels sorted by date
-    matches_df = matches_df.sort_values("date").reset_index(drop=True)
-    matches_df["_label"] = matches_df.apply(
-        lambda r: (
-            f"{r['team1']} vs {r['team2']} — "
-            f"{pd.to_datetime(r['date']).strftime('%d %b %Y')} — "
-            f"{r['venue']}"
-        ),
-        axis=1,
-    )
-    selected_label = st.selectbox("Select Match", matches_df["_label"].tolist())
+# Build human-readable labels sorted by date
+matches_df = matches_df.sort_values("date").reset_index(drop=True)
+matches_df["_label"] = matches_df.apply(
+    lambda r: (
+        f"{r['team1']} vs {r['team2']} -- "
+        f"{pd.to_datetime(r['date']).strftime('%d %b %Y')} -- "
+        f"{r['venue']}"
+    ),
+    axis=1,
+)
+
+with sel_col2:
+    selected_label = st.selectbox("Select Match", matches_df["_label"].tolist(), key="mc_match")
 
 # ── Load selected match data ──
 match_row = matches_df[matches_df["_label"] == selected_label].iloc[0]
@@ -933,11 +930,11 @@ render_header(match_row)
 
 # ── Tabs ──
 tab_sc, tab_worm, tab_part, tab_obo, tab_stats = st.tabs([
-    "📝 Scorecard",
-    "📈 Worm Chart",
-    "🤝 Partnerships",
-    "📊 Over-by-Over",
-    "📋 Match Stats",
+    "Scorecard",
+    "Worm Chart",
+    "Partnerships",
+    "Over-by-Over",
+    "Match Stats",
 ])
 
 with tab_sc:

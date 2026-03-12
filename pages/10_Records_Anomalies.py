@@ -1,5 +1,5 @@
 """
-🎯 Records & Anomalies — The complete IPL record book.
+Records & Anomalies — The complete IPL record book.
 """
 
 import streamlit as st
@@ -10,13 +10,7 @@ from src.visualizations.theme import apply_ipl_style, styled_bar, big_number_sty
 from src.utils.constants import TEAM_COLORS, ALL_SEASONS
 from src.utils.formatters import format_number, format_strike_rate, format_economy, format_overs
 
-st.set_page_config(
-    page_title="Records & Anomalies | IPL Analytics",
-    page_icon="🎯",
-    layout="wide",
-)
-
-st.title("🎯 Records & Anomalies")
+st.title("Records & Anomalies")
 st.caption("The complete IPL record book — every milestone, extreme and anomaly.")
 st.markdown(big_number_style(), unsafe_allow_html=True)
 
@@ -716,7 +710,7 @@ def _show_table(df, title=None):
     if df.empty:
         st.info("No records found.")
     else:
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width='stretch', hide_index=True)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -724,70 +718,70 @@ def _show_table(df, title=None):
 # ═══════════════════════════════════════════════════════════════════════
 
 tab_bat, tab_bowl, tab_team, tab_match, tab_mile = st.tabs([
-    "🏏 Batting Records",
-    "🎳 Bowling Records",
-    "👥 Team Records",
-    "📋 Match Records",
-    "🏅 Milestones",
+    "Batting Records",
+    "Bowling Records",
+    "Team Records",
+    "Match Records",
+    "Milestones",
 ])
 
 
 # ── BATTING RECORDS ───────────────────────────────────────────────────
 with tab_bat:
 
-    _show_table(_highest_individual_scores(), "🔝 Highest Individual Scores (Top 25)")
+    _show_table(_highest_individual_scores(), "Highest Individual Scores (Top 25)")
     st.divider()
 
     c1, c2 = st.columns(2)
     with c1:
-        _show_table(_fastest_fifties(), "⚡ Fastest Fifties (Top 15)")
+        _show_table(_fastest_fifties(), "Fastest Fifties (Top 15)")
     with c2:
-        _show_table(_fastest_centuries(), "💯 Fastest Centuries (Top 10)")
-
-    st.divider()
-
-    c1, c2 = st.columns(2)
-    with c1:
-        _show_table(_most_sixes_innings(), "💥 Most Sixes in an Innings (Top 15)")
-    with c2:
-        _show_table(_most_fours_innings(), "🏏 Most Fours in an Innings (Top 15)")
+        _show_table(_fastest_centuries(), "Fastest Centuries (Top 10)")
 
     st.divider()
 
     c1, c2 = st.columns(2)
     with c1:
-        _show_table(_highest_sr_innings(), "🚀 Highest SR in Innings (min 20 balls, Top 15)")
+        _show_table(_most_sixes_innings(), "Most Sixes in an Innings (Top 15)")
     with c2:
-        _show_table(_slowest_fifties(), "🐢 Slowest Fifties (Top 10)")
+        _show_table(_most_fours_innings(), "Most Fours in an Innings (Top 15)")
 
     st.divider()
-    _show_table(_most_runs_single_season(), "📊 Most Runs in a Single Season (Top 15)")
+
+    c1, c2 = st.columns(2)
+    with c1:
+        _show_table(_highest_sr_innings(), "Highest SR in Innings (min 20 balls, Top 15)")
+    with c2:
+        _show_table(_slowest_fifties(), "Slowest Fifties (Top 10)")
 
     st.divider()
-    _show_table(_most_consecutive_ducks(), "🦆 Most Consecutive Ducks")
+    _show_table(_most_runs_single_season(), "Most Runs in a Single Season (Top 15)")
+
+    st.divider()
+    _show_table(_most_consecutive_ducks(), "Most Consecutive Ducks")
 
 
 # ── BOWLING RECORDS ───────────────────────────────────────────────────
 with tab_bowl:
 
-    _show_table(_best_bowling_figures(), "🎯 Best Bowling Figures (Top 25)")
+    _show_table(_best_bowling_figures(), "Best Bowling Figures (Top 25)")
     st.divider()
 
     c1, c2 = st.columns(2)
     with c1:
-        _show_table(_most_economical_spells(), "🧊 Most Economical 4-Over Spells (Top 15)")
+        _show_table(_most_economical_spells(), "Most Economical 4-Over Spells (Top 15)")
     with c2:
-        _show_table(_most_expensive_spells(), "🔥 Most Expensive Spells (Top 15)")
+        _show_table(_most_expensive_spells(), "Most Expensive Spells (Top 15)")
 
     st.divider()
-    _show_table(_most_wickets_single_season(), "📊 Most Wickets in a Single Season (Top 15)")
+    _show_table(_most_wickets_single_season(), "Most Wickets in a Single Season (Top 15)")
 
     st.divider()
     c1, c2 = st.columns(2)
     with c1:
-        _show_table(_most_maidens_career(), "🧤 Most Maiden Overs — Career (Top 15)")
+        _show_table(_most_maidens_career(), "Most Maiden Overs — Career (Top 15)")
     with c2:
-        _show_table(_most_dots_career(), "⭕ Most Dot Balls — Career (Top 15)")
+        _show_table(_most_dots_career(), "Most Dot Balls — Career (Top 15)")
 
 
 # ── TEAM RECORDS ──────────────────────────────────────────────────────
@@ -795,47 +789,47 @@ with tab_team:
 
     c1, c2 = st.columns(2)
     with c1:
-        _show_table(_highest_team_totals(), "📈 Highest Team Totals (Top 20)")
+        _show_table(_highest_team_totals(), "Highest Team Totals (Top 20)")
     with c2:
-        _show_table(_lowest_team_totals(), "📉 Lowest Team Totals (Top 20)")
+        _show_table(_lowest_team_totals(), "Lowest Team Totals (Top 20)")
 
     st.divider()
     c1, c2 = st.columns(2)
     with c1:
-        _show_table(_biggest_wins_by_runs(), "💪 Biggest Wins by Runs (Top 15)")
+        _show_table(_biggest_wins_by_runs(), "Biggest Wins by Runs (Top 15)")
     with c2:
-        _show_table(_biggest_wins_by_wickets(), "💪 Biggest Wins by Wickets (Top 15)")
+        _show_table(_biggest_wins_by_wickets(), "Biggest Wins by Wickets (Top 15)")
 
     st.divider()
-    _show_table(_narrowest_victories(), "🤏 Narrowest Victories")
+    _show_table(_narrowest_victories(), "Narrowest Victories")
 
     st.divider()
     c1, c2 = st.columns(2)
     with c1:
-        _show_table(_highest_successful_chases(), "🏹 Highest Successful Chases (Top 15)")
+        _show_table(_highest_successful_chases(), "Highest Successful Chases (Top 15)")
     with c2:
-        _show_table(_lowest_totals_defended(), "🛡️ Lowest Totals Defended (Top 15)")
+        _show_table(_lowest_totals_defended(), "Lowest Totals Defended (Top 15)")
 
 
 # ── MATCH RECORDS ─────────────────────────────────────────────────────
 with tab_match:
 
-    _show_table(_highest_aggregate_matches(), "🔥 Highest Aggregate Matches (Top 15)")
+    _show_table(_highest_aggregate_matches(), "Highest Aggregate Matches (Top 15)")
 
     st.divider()
-    _show_table(_most_sixes_match(), "💥 Most Sixes in a Single Match (Top 15)")
+    _show_table(_most_sixes_match(), "Most Sixes in a Single Match (Top 15)")
 
     st.divider()
-    _show_table(_super_over_matches(), "⚡ Super Over Matches")
+    _show_table(_super_over_matches(), "Super Over Matches")
 
     st.divider()
-    _show_table(_last_ball_finishes(), "🎬 Last-Ball Finishes")
+    _show_table(_last_ball_finishes(), "Last-Ball Finishes")
 
 
 # ── MILESTONES ────────────────────────────────────────────────────────
 with tab_mile:
 
-    st.subheader("🏏 Elite Club Members")
+    st.subheader("Elite Club Members")
     c1, c2 = st.columns(2)
     with c1:
         _show_table(_runs_5000_club(), "5,000+ Runs Club")
@@ -852,12 +846,12 @@ with tab_mile:
 
     c1, c2 = st.columns(2)
     with c1:
-        _show_table(_orange_cap_history(), "🧡 Orange Cap History (Top Run Scorer per Season)")
+        _show_table(_orange_cap_history(), "Orange Cap History (Top Run Scorer per Season)")
     with c2:
-        _show_table(_purple_cap_history(), "💜 Purple Cap History (Top Wicket Taker per Season)")
+        _show_table(_purple_cap_history(), "Purple Cap History (Top Wicket Taker per Season)")
 
     st.divider()
-    st.subheader("🏆 Most Player of the Match Awards (Top 15)")
+    st.subheader("Most Player of the Match Awards (Top 15)")
     df_potm = _most_potm_awards()
     if not df_potm.empty:
         fig = styled_bar(
@@ -866,7 +860,7 @@ with tab_mile:
             title="Most Player of the Match Awards",
             horizontal=True, height=500,
         )
-        st.plotly_chart(fig, use_container_width=True)
-        st.dataframe(df_potm, use_container_width=True, hide_index=True)
+        st.plotly_chart(fig, width='stretch')
+        st.dataframe(df_potm, width='stretch', hide_index=True)
     else:
         st.info("No data found.")

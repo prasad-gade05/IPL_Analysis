@@ -1,5 +1,5 @@
 """
-🏏 Player Profile — Complete dossier of any IPL player.
+Player Profile — Complete dossier of any IPL player.
 """
 
 import streamlit as st
@@ -15,10 +15,6 @@ from src.utils.constants import TEAM_COLORS, ALL_SEASONS, PHASE_COLORS
 from src.utils.formatters import (
     format_number, format_strike_rate, format_economy,
     format_average, format_overs,
-)
-
-st.set_page_config(
-    page_title="Player Profile | IPL Analytics", page_icon="🏏", layout="wide"
 )
 
 # ── CSS for metric cards ─────────────────────────────────────────────────────
@@ -357,7 +353,7 @@ def get_dominated_batters(player):
 def get_batting_vs_opposition(player):
     return query("""
         SELECT
-            b.bowling_team AS opposition,
+            CASE WHEN m.team1 = b.batting_team THEN m.team2 ELSE m.team1 END AS opposition,
             COUNT(DISTINCT b.match_id) AS matches,
             COUNT(*) AS innings,
             SUM(b.runs) AS runs,
@@ -368,8 +364,9 @@ def get_batting_vs_opposition(player):
                  THEN ROUND(SUM(b.runs) * 100.0 / SUM(b.balls), 2)
                  ELSE NULL END AS sr
         FROM player_batting b
+        JOIN matches m ON b.match_id = m.match_id
         WHERE b.batter = ?
-        GROUP BY b.bowling_team
+        GROUP BY opposition
         ORDER BY runs DESC
     """, [player])
 
@@ -435,7 +432,7 @@ if "selected_player" in st.session_state and st.session_state["selected_player"]
     default_idx = all_players.index(st.session_state["selected_player"])
 
 player = st.selectbox(
-    "🔍 Search & select a player",
+    "Search & select a player",
     options=all_players,
     index=default_idx,
     placeholder="Type to search…",
@@ -458,11 +455,11 @@ bowl_summary = get_bowling_summary(player)
 
 is_bowler = bowl_summary["balls"] > 0
 
-st.markdown(f"# 🏏 {player}")
+st.markdown(f"# {player}")
 
 team_tags = "  •  ".join([f"**{t}**" for t in teams])
 career = f"{int(span['first'])} – {int(span['last'])}" if span["first"] else "N/A"
-st.markdown(f"🏷️ {team_tags}  &nbsp;|&nbsp;  📅 Career: **{career}**")
+st.markdown(f"{team_tags}  &nbsp;|&nbsp;  Career: **{career}**")
 
 # 8 metric cards
 c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8)
@@ -481,7 +478,7 @@ st.divider()
 #  TABS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-tab_labels = ["🏏 Batting", "🎯 Bowling", "⚔️ Matchups", "🏟️ Venues & Opposition", "❌ Dismissals"]
+tab_labels = ["Batting", "Bowling", "Matchups", "Venues & Opposition", "Dismissals"]
 tabs = st.tabs(tab_labels)
 
 # ─── BATTING TAB ──────────────────────────────────────────────────────────────
@@ -492,16 +489,16 @@ with tabs[0]:
         st.info("No batting records found for this player.")
     else:
         # Season-by-season table
-        st.subheader("📊 Season-by-Season Batting")
+        st.subheader("Season-by-Season Batting")
         display_bat = season_bat.rename(columns={
             "season": "Season", "team": "Team", "matches": "Mat", "innings": "Inn",
             "runs": "Runs", "avg": "Avg", "sr": "SR", "fifties": "50s",
             "hundreds": "100s", "hs": "HS", "fours": "4s", "sixes": "6s",
         })
-        st.dataframe(display_bat, hide_index=True, use_container_width=True)
+        st.dataframe(display_bat, hide_index=True, width='stretch')
 
         # Season runs bar + average line (dual axis)
-        st.subheader("📈 Runs & Average by Season")
+        st.subheader("Runs & Average by Season")
         fig_dual = go.Figure()
         fig_dual.add_trace(go.Bar(
             x=season_bat["season"], y=season_bat["runs"],
@@ -521,10 +518,10 @@ with tabs[0]:
             barmode="group",
         )
         apply_ipl_style(fig_dual, height=420)
-        st.plotly_chart(fig_dual, use_container_width=True)
+        st.plotly_chart(fig_dual, width='stretch')
 
         # Cumulative runs area chart
-        st.subheader("📈 Cumulative Runs")
+        st.subheader("Cumulative Runs")
         cum_df = season_bat[["season", "runs"]].copy()
         cum_df["cumulative"] = cum_df["runs"].cumsum()
         fig_cum = px.area(cum_df, x="season", y="cumulative",
@@ -532,10 +529,10 @@ with tabs[0]:
         fig_cum.update_traces(line_color=IPL_COLORWAY[1],
                               fillcolor="rgba(78,205,196,0.2)")
         apply_ipl_style(fig_cum, height=380)
-        st.plotly_chart(fig_cum, use_container_width=True)
+        st.plotly_chart(fig_cum, width='stretch')
 
         # Innings scatter
-        st.subheader("📍 Innings Scatter — Runs vs Balls")
+        st.subheader("Innings Scatter — Runs vs Balls")
         innings_df = get_innings_detail(player)
         if not innings_df.empty:
             fig_scatter = styled_scatter(
@@ -544,10 +541,10 @@ with tabs[0]:
                 hover_name=None, height=420,
             )
             fig_scatter.update_traces(marker=dict(size=9, opacity=0.75))
-            st.plotly_chart(fig_scatter, use_container_width=True)
+            st.plotly_chart(fig_scatter, width='stretch')
 
         # Score distribution histogram
-        st.subheader("📊 Score Distribution")
+        st.subheader("Score Distribution")
         bat_runs = get_batting_summary.__wrapped__(player)  # reuse: just need innings_df
         if not innings_df.empty:
             bins = [0, 1, 10, 20, 30, 50, 75, 100, 500]
@@ -561,22 +558,22 @@ with tabs[0]:
             fig_hist = styled_bar(bucket_counts, x="Score Range", y="Count",
                                   title="", height=380)
             fig_hist.update_traces(marker_color=IPL_COLORWAY[3])
-            st.plotly_chart(fig_hist, use_container_width=True)
+            st.plotly_chart(fig_hist, width='stretch')
 
         col_a, col_b = st.columns(2)
 
         # Run scoring breakdown donut
         with col_a:
-            st.subheader("🍩 Run Scoring Breakdown")
+            st.subheader("Run Scoring Breakdown")
             rs_df = get_run_scoring_breakdown(player)
             if not rs_df.empty:
                 fig_donut = styled_pie(rs_df, names="run_type", values="count",
                                        title="", hole=0.45, height=400)
-                st.plotly_chart(fig_donut, use_container_width=True)
+                st.plotly_chart(fig_donut, width='stretch')
 
         # Phase-wise batting stats
         with col_b:
-            st.subheader("⏱️ Phase-wise Batting")
+            st.subheader("Phase-wise Batting")
             phase_bat = get_batting_phase_stats(player)
             if not phase_bat.empty:
                 phase_display = phase_bat.rename(columns={
@@ -584,10 +581,10 @@ with tabs[0]:
                     "sr": "SR", "dot_pct": "Dot%", "boundary_pct": "Boundary%",
                 })
                 phase_display["Phase"] = phase_display["Phase"].str.capitalize()
-                st.dataframe(phase_display, hide_index=True, use_container_width=True)
+                st.dataframe(phase_display, hide_index=True, width='stretch')
 
         # Over-by-over batting profile
-        st.subheader("📊 Over-by-Over Batting Profile")
+        st.subheader("Over-by-Over Batting Profile")
         obo_bat = get_over_by_over_batting(player)
         if not obo_bat.empty:
             fig_obo = styled_bar(obo_bat, x="over_num", y="avg_runs",
@@ -595,7 +592,7 @@ with tabs[0]:
             fig_obo.update_traces(marker_color=IPL_COLORWAY[0])
             fig_obo.update_xaxes(title="Over", dtick=1)
             fig_obo.update_yaxes(title="Avg Runs")
-            st.plotly_chart(fig_obo, use_container_width=True)
+            st.plotly_chart(fig_obo, width='stretch')
 
 # ─── BOWLING TAB ──────────────────────────────────────────────────────────────
 with tabs[1]:
@@ -605,7 +602,7 @@ with tabs[1]:
         season_bowl = get_bowling_by_season(player)
 
         # Season-by-season bowling table
-        st.subheader("📊 Season-by-Season Bowling")
+        st.subheader("Season-by-Season Bowling")
         display_bowl = season_bowl.copy()
         display_bowl["overs"] = display_bowl["balls"].apply(
             lambda b: format_overs(int(b)) if pd.notna(b) else "N/A"
@@ -615,10 +612,10 @@ with tabs[1]:
             "overs": "Overs", "wickets": "Wkts", "runs": "Runs",
             "economy": "Econ", "sr": "SR", "maidens": "Mdns",
         })[["Season", "Team", "Mat", "Overs", "Wkts", "Runs", "Econ", "SR", "Mdns"]]
-        st.dataframe(display_bowl, hide_index=True, use_container_width=True)
+        st.dataframe(display_bowl, hide_index=True, width='stretch')
 
         # Season wickets bar + economy line
-        st.subheader("📈 Wickets & Economy by Season")
+        st.subheader("Wickets & Economy by Season")
         fig_bowl_dual = go.Figure()
         fig_bowl_dual.add_trace(go.Bar(
             x=season_bowl["season"], y=season_bowl["wickets"],
@@ -637,22 +634,22 @@ with tabs[1]:
                         showgrid=False),
         )
         apply_ipl_style(fig_bowl_dual, height=420)
-        st.plotly_chart(fig_bowl_dual, use_container_width=True)
+        st.plotly_chart(fig_bowl_dual, width='stretch')
 
         col_w, col_p = st.columns(2)
 
         # Wicket types donut
         with col_w:
-            st.subheader("🍩 Wicket Types")
+            st.subheader("Wicket Types")
             wkt_types = get_wicket_types(player)
             if not wkt_types.empty:
                 fig_wkt = styled_pie(wkt_types, names="wicket_kind", values="count",
                                      title="", hole=0.45, height=400)
-                st.plotly_chart(fig_wkt, use_container_width=True)
+                st.plotly_chart(fig_wkt, width='stretch')
 
         # Phase-wise bowling table
         with col_p:
-            st.subheader("⏱️ Phase-wise Bowling")
+            st.subheader("Phase-wise Bowling")
             phase_bowl = get_bowling_phase_stats(player)
             if not phase_bowl.empty:
                 phase_bowl_display = phase_bowl.copy()
@@ -664,10 +661,10 @@ with tabs[1]:
                     "economy": "Econ", "dot_pct": "Dot%",
                 })[["Phase", "Overs", "Wkts", "Econ", "Dot%"]]
                 phase_bowl_display["Phase"] = phase_bowl_display["Phase"].str.capitalize()
-                st.dataframe(phase_bowl_display, hide_index=True, use_container_width=True)
+                st.dataframe(phase_bowl_display, hide_index=True, width='stretch')
 
         # Over-by-over economy bar chart
-        st.subheader("📊 Over-by-Over Economy")
+        st.subheader("Over-by-Over Economy")
         obo_bowl = get_over_by_over_bowling(player)
         if not obo_bowl.empty:
             fig_obo_bowl = styled_bar(obo_bowl, x="over_num", y="economy",
@@ -675,22 +672,22 @@ with tabs[1]:
             fig_obo_bowl.update_traces(marker_color=IPL_COLORWAY[2])
             fig_obo_bowl.update_xaxes(title="Over", dtick=1)
             fig_obo_bowl.update_yaxes(title="Economy")
-            st.plotly_chart(fig_obo_bowl, use_container_width=True)
+            st.plotly_chart(fig_obo_bowl, width='stretch')
 
 # ─── MATCHUPS TAB ─────────────────────────────────────────────────────────────
 with tabs[2]:
     # vs Bowlers section
-    st.subheader("🏏 vs Bowlers (as Batter)")
+    st.subheader("vs Bowlers (as Batter)")
     mu_bowlers = get_matchups_vs_bowlers(player)
     if mu_bowlers.empty:
         st.info("No matchup data available for this player as a batter.")
     else:
-        st.dataframe(mu_bowlers, hide_index=True, use_container_width=True)
+        st.dataframe(mu_bowlers, hide_index=True, width='stretch')
 
         col_d, col_dom = st.columns(2)
 
         with col_d:
-            st.subheader("💀 Top Dismissers")
+            st.subheader("Top Dismissers")
             dismissers = get_top_dismissers(player)
             if not dismissers.empty:
                 fig_dis = styled_bar(
@@ -698,10 +695,10 @@ with tabs[2]:
                     title="", height=380,
                 )
                 fig_dis.update_traces(marker_color=IPL_COLORWAY[0])
-                st.plotly_chart(fig_dis, use_container_width=True)
+                st.plotly_chart(fig_dis, width='stretch')
 
         with col_dom:
-            st.subheader("🔥 Dominated Bowlers (SR, min 10 balls)")
+            st.subheader("Dominated Bowlers (SR, min 10 balls)")
             dominated = get_dominated_bowlers(player)
             if not dominated.empty:
                 fig_dom = styled_bar(
@@ -709,22 +706,22 @@ with tabs[2]:
                     title="", height=380,
                 )
                 fig_dom.update_traces(marker_color=IPL_COLORWAY[1])
-                st.plotly_chart(fig_dom, use_container_width=True)
+                st.plotly_chart(fig_dom, width='stretch')
 
     # vs Batters section (only if bowler)
     if is_bowler:
         st.divider()
-        st.subheader("🎯 vs Batters (as Bowler)")
+        st.subheader("vs Batters (as Bowler)")
         mu_batters = get_matchups_vs_batters(player)
         if mu_batters.empty:
             st.info("No matchup data available for this player as a bowler.")
         else:
-            st.dataframe(mu_batters, hide_index=True, use_container_width=True)
+            st.dataframe(mu_batters, hide_index=True, width='stretch')
 
             col_v, col_d2 = st.columns(2)
 
             with col_v:
-                st.subheader("💀 Top Victims")
+                st.subheader("Top Victims")
                 victims = get_top_victims(player)
                 if not victims.empty:
                     fig_vic = styled_bar(
@@ -732,10 +729,10 @@ with tabs[2]:
                         title="", height=380,
                     )
                     fig_vic.update_traces(marker_color=IPL_COLORWAY[2])
-                    st.plotly_chart(fig_vic, use_container_width=True)
+                    st.plotly_chart(fig_vic, width='stretch')
 
             with col_d2:
-                st.subheader("🛡️ Dominated Batters (lowest SR, min 10 balls)")
+                st.subheader("Dominated Batters (lowest SR, min 10 balls)")
                 dom_bat = get_dominated_batters(player)
                 if not dom_bat.empty:
                     fig_dom_bat = styled_bar(
@@ -743,14 +740,14 @@ with tabs[2]:
                         title="", height=380,
                     )
                     fig_dom_bat.update_traces(marker_color=IPL_COLORWAY[4])
-                    st.plotly_chart(fig_dom_bat, use_container_width=True)
+                    st.plotly_chart(fig_dom_bat, width='stretch')
 
 # ─── VENUES & OPPOSITION TAB ─────────────────────────────────────────────────
 with tabs[3]:
     col_opp, col_ven = st.columns(2)
 
     with col_opp:
-        st.subheader("⚔️ Performance by Opposition")
+        st.subheader("Performance by Opposition")
         opp_df = get_batting_vs_opposition(player)
         if opp_df.empty:
             st.info("No opposition data available.")
@@ -759,10 +756,10 @@ with tabs[3]:
                 "opposition": "Opposition", "matches": "Mat", "innings": "Inn",
                 "runs": "Runs", "avg": "Avg", "sr": "SR",
             })
-            st.dataframe(opp_display, hide_index=True, use_container_width=True)
+            st.dataframe(opp_display, hide_index=True, width='stretch')
 
     with col_ven:
-        st.subheader("🏟️ Performance by Venue")
+        st.subheader("Performance by Venue")
         ven_df = get_batting_by_venue(player)
         if ven_df.empty:
             st.info("No venue data available.")
@@ -771,7 +768,7 @@ with tabs[3]:
                 "venue": "Venue", "matches": "Mat",
                 "runs": "Runs", "avg": "Avg", "sr": "SR", "hs": "HS",
             })
-            st.dataframe(ven_display, hide_index=True, use_container_width=True)
+            st.dataframe(ven_display, hide_index=True, width='stretch')
 
 # ─── DISMISSALS TAB ──────────────────────────────────────────────────────────
 with tabs[4]:
@@ -783,13 +780,13 @@ with tabs[4]:
         col_pie, col_phase = st.columns(2)
 
         with col_pie:
-            st.subheader("🍩 Dismissal Types")
+            st.subheader("Dismissal Types")
             fig_dis_pie = styled_pie(dis_types, names="wicket_kind", values="count",
                                      title="", hole=0.45, height=420)
-            st.plotly_chart(fig_dis_pie, use_container_width=True)
+            st.plotly_chart(fig_dis_pie, width='stretch')
 
         with col_phase:
-            st.subheader("📊 Dismissals by Phase")
+            st.subheader("Dismissals by Phase")
             dis_phase = get_dismissals_by_phase(player)
             if not dis_phase.empty:
                 dis_phase["match_phase"] = dis_phase["match_phase"].str.capitalize()
@@ -800,9 +797,9 @@ with tabs[4]:
                 apply_ipl_style(fig_phase_bar, height=420)
                 fig_phase_bar.update_xaxes(title="Phase")
                 fig_phase_bar.update_yaxes(title="Dismissals")
-                st.plotly_chart(fig_phase_bar, use_container_width=True)
+                st.plotly_chart(fig_phase_bar, width='stretch')
 
-        st.subheader("📊 Dismissals by Over")
+        st.subheader("Dismissals by Over")
         dis_over = get_dismissals_by_over(player)
         if not dis_over.empty:
             fig_dis_over = styled_bar(
@@ -812,4 +809,4 @@ with tabs[4]:
             fig_dis_over.update_traces(marker_color=IPL_COLORWAY[0])
             fig_dis_over.update_xaxes(title="Over", dtick=1)
             fig_dis_over.update_yaxes(title="Dismissals")
-            st.plotly_chart(fig_dis_over, use_container_width=True)
+            st.plotly_chart(fig_dis_over, width='stretch')

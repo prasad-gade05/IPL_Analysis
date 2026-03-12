@@ -1,5 +1,5 @@
 """
-🏟️ Venue Intelligence — Ground-specific insights.
+Venue Intelligence — Ground-specific insights.
 """
 
 import streamlit as st
@@ -20,12 +20,6 @@ from src.visualizations.theme import (
 )
 from src.utils.constants import TEAM_COLORS, ALL_SEASONS
 from src.utils.formatters import format_number, format_strike_rate, format_average
-
-st.set_page_config(
-    page_title="Venue Intelligence | IPL Analytics",
-    page_icon="🏟️",
-    layout="wide",
-)
 
 # ---------------------------------------------------------------------------
 # Cached query helpers
@@ -300,7 +294,7 @@ def get_highest_scores(venue, limit=10):
 # Page header & venue selector
 # ---------------------------------------------------------------------------
 
-st.title("🏟️ Venue Intelligence")
+st.title("Venue Intelligence")
 st.caption("Ground-specific insights — pitch behaviour, scoring patterns & team performance.")
 
 venue_options = ["All Venues"] + get_venue_list()
@@ -325,7 +319,7 @@ if selected_venue == "All Venues":
     st.divider()
 
     # ---- sortable venue table ----
-    st.subheader("📋 Venue Overview")
+    st.subheader("Venue Overview")
     display_df = venues_df[
         [
             "venue", "city", "total_matches", "avg_score",
@@ -340,7 +334,7 @@ if selected_venue == "All Venues":
     ]
     st.dataframe(
         display_df,
-        use_container_width=True,
+        width='stretch',
         hide_index=True,
         column_config={
             "Avg Score": st.column_config.NumberColumn(format="%.1f"),
@@ -353,48 +347,47 @@ if selected_venue == "All Venues":
 
     st.divider()
 
-    # ---- charts side-by-side ----
-    left, right = st.columns(2)
+    # ---- Venue Clustering ----
+    st.subheader("Venue Clustering")
+    fig = styled_scatter(
+        venues_df,
+        x="avg_score",
+        y="bat_first_win_pct",
+        size="total_matches",
+        hover_name="venue",
+        title="Avg Score vs Bat-First Win %",
+    )
+    fig.update_layout(xaxis_title="Avg Score", yaxis_title="Bat First Win %")
+    st.plotly_chart(fig, width='stretch')
 
-    with left:
-        st.subheader("🔵 Venue Clustering")
-        fig = styled_scatter(
-            venues_df,
-            x="avg_score",
-            y="bat_first_win_pct",
-            size="total_matches",
-            hover_name="venue",
-            title="Avg Score vs Bat-First Win %",
+    st.divider()
+
+    # ---- Venue Usage Over Seasons (full-width) ----
+    st.subheader("Venue Usage Over Seasons")
+    usage_df = get_venue_season_usage()
+    if not usage_df.empty:
+        pivot = usage_df.pivot_table(
+            index="venue", columns="season", values="match_count", fill_value=0
         )
-        fig.update_layout(xaxis_title="Avg Score", yaxis_title="Bat First Win %")
-        st.plotly_chart(fig, use_container_width=True)
+        # keep venues with >5 total matches for readability
+        pivot = pivot.loc[pivot.sum(axis=1) > 5]
+        pivot = pivot.loc[pivot.sum(axis=1).sort_values(ascending=False).index]
 
-    with right:
-        st.subheader("🗓️ Venue Usage Over Seasons")
-        usage_df = get_venue_season_usage()
-        if not usage_df.empty:
-            pivot = usage_df.pivot_table(
-                index="venue", columns="season", values="match_count", fill_value=0
+        fig = go.Figure(
+            data=go.Heatmap(
+                z=pivot.values,
+                x=[str(s) for s in pivot.columns],
+                y=pivot.index.tolist(),
+                colorscale="YlOrRd",
+                hoverongaps=False,
+                hovertemplate=(
+                    "Venue: %{y}<br>Season: %{x}<br>Matches: %{z}<extra></extra>"
+                ),
             )
-            # keep venues with >5 total matches for readability
-            pivot = pivot.loc[pivot.sum(axis=1) > 5]
-            pivot = pivot.loc[pivot.sum(axis=1).sort_values(ascending=False).index]
-
-            fig = go.Figure(
-                data=go.Heatmap(
-                    z=pivot.values,
-                    x=[str(s) for s in pivot.columns],
-                    y=pivot.index.tolist(),
-                    colorscale="YlOrRd",
-                    hoverongaps=False,
-                    hovertemplate=(
-                        "Venue: %{y}<br>Season: %{x}<br>Matches: %{z}<extra></extra>"
-                    ),
-                )
-            )
-            fig.update_layout(title="Matches Hosted by Season")
-            apply_ipl_style(fig, height=max(500, len(pivot) * 24))
-            st.plotly_chart(fig, use_container_width=True)
+        )
+        fig.update_layout(title="Matches Hosted by Season")
+        apply_ipl_style(fig, height=max(500, len(pivot) * 24))
+        st.plotly_chart(fig, width='stretch')
 
 # ===================================================================
 # SPECIFIC VENUE VIEW
@@ -411,7 +404,7 @@ else:
 
     # ---- identity card ----
     season_range_str = f"{min(seasons)}–{max(seasons)}" if seasons else "N/A"
-    st.subheader(f"🏟️ {selected_venue}")
+    st.subheader(f"{selected_venue}")
     st.markdown(
         f"**City:** {v.get('city', 'N/A')} &nbsp;|&nbsp; "
         f"**Total Matches:** {format_number(v['total_matches'])} &nbsp;|&nbsp; "
@@ -440,7 +433,7 @@ else:
     left, right = st.columns(2)
 
     with left:
-        st.subheader("📊 Score Distribution")
+        st.subheader("Score Distribution")
         scores_df = get_innings_scores(selected_venue)
         if not scores_df.empty:
             melted = pd.melt(
@@ -467,12 +460,12 @@ else:
             )
             apply_ipl_style(fig)
             fig.update_layout(xaxis_title="Score", yaxis_title="Frequency")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("Not enough data for score distribution.")
 
     with right:
-        st.subheader("📈 Avg Score Trend")
+        st.subheader("Avg Score Trend")
         trend_df = get_avg_score_trend(selected_venue)
         if not trend_df.empty:
             fig = styled_line(
@@ -480,7 +473,7 @@ else:
                 title="Average Score per Season",
             )
             fig.update_layout(xaxis_title="Season", yaxis_title="Avg Score")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("Not enough data for score trend.")
 
@@ -490,7 +483,7 @@ else:
     left, right = st.columns(2)
 
     with left:
-        st.subheader("⚡ Run Rate by Phase")
+        st.subheader("Run Rate by Phase")
         phase_df = get_run_rate_by_phase(selected_venue)
         league_df = get_league_avg_run_rate()
 
@@ -511,12 +504,12 @@ else:
                 xaxis_title="Phase", yaxis_title="Run Rate",
                 barmode="group",
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("Not enough phase data.")
 
     with right:
-        st.subheader("🏏 Boundary Stats")
+        st.subheader("Boundary Stats")
         boundary_df = get_boundary_stats(selected_venue)
         if not boundary_df.empty:
             bd = boundary_df.iloc[0]
@@ -530,7 +523,7 @@ else:
                 color="Boundary Type",
                 color_map={"Avg 4s / Match": "#4ECDC4", "Avg 6s / Match": "#FF6B6B"},
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("No boundary data available.")
 
@@ -540,19 +533,19 @@ else:
     left, right = st.columns(2)
 
     with left:
-        st.subheader("🎯 Wicket Types")
+        st.subheader("Wicket Types")
         wicket_df = get_wicket_types(selected_venue)
         if not wicket_df.empty:
             fig = styled_pie(
                 wicket_df, names="dismissal_type", values="count",
                 title="Dismissal Types at this Venue",
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         else:
             st.info("No dismissal data available.")
 
     with right:
-        st.subheader("🪙 Toss Analysis")
+        st.subheader("Toss Analysis")
         toss_df = get_toss_analysis(selected_venue)
         bf_df = get_bat_field_win_pct(selected_venue)
 
@@ -563,7 +556,7 @@ else:
                 toss_display, names="toss_decision", values="total",
                 title="Toss Decision Split",
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
         if not bf_df.empty:
             bfd = bf_df.iloc[0]
@@ -580,7 +573,7 @@ else:
     st.divider()
 
     # ---- Team Performance ----
-    st.subheader("👥 Team Performance at this Venue")
+    st.subheader("Team Performance at this Venue")
     team_df = get_team_performance(selected_venue)
     if not team_df.empty:
         team_display = team_df.rename(
@@ -591,7 +584,7 @@ else:
         )
         st.dataframe(
             team_display,
-            use_container_width=True,
+            width='stretch',
             hide_index=True,
             column_config={
                 "Win%": st.column_config.NumberColumn(format="%.1f%%"),
@@ -606,7 +599,7 @@ else:
     left, right = st.columns(2)
 
     with left:
-        st.subheader("🏏 Top Run Scorers")
+        st.subheader("Top Run Scorers")
         batters_df = get_top_run_scorers(selected_venue)
         if not batters_df.empty:
             batters_display = batters_df.rename(
@@ -617,7 +610,7 @@ else:
                 }
             )
             st.dataframe(
-                batters_display, use_container_width=True, hide_index=True,
+                batters_display, width='stretch', hide_index=True,
                 column_config={
                     "SR": st.column_config.NumberColumn(format="%.1f"),
                 },
@@ -626,7 +619,7 @@ else:
             st.info("No batting data available.")
 
     with right:
-        st.subheader("🎳 Top Wicket Takers")
+        st.subheader("Top Wicket Takers")
         bowlers_df = get_top_wicket_takers(selected_venue)
         if not bowlers_df.empty:
             bowlers_display = bowlers_df.rename(
@@ -637,7 +630,7 @@ else:
                 }
             )
             st.dataframe(
-                bowlers_display, use_container_width=True, hide_index=True,
+                bowlers_display, width='stretch', hide_index=True,
                 column_config={
                     "Econ": st.column_config.NumberColumn(format="%.2f"),
                     "SR": st.column_config.NumberColumn(format="%.1f"),
@@ -649,7 +642,7 @@ else:
     st.divider()
 
     # ---- Highest Individual Scores ----
-    st.subheader("🏆 Highest Individual Scores")
+    st.subheader("Highest Individual Scores")
     highest_df = get_highest_scores(selected_venue)
     if not highest_df.empty:
         highest_display = highest_df.rename(
@@ -660,7 +653,7 @@ else:
             }
         )
         st.dataframe(
-            highest_display, use_container_width=True, hide_index=True,
+            highest_display, width='stretch', hide_index=True,
             column_config={
                 "SR": st.column_config.NumberColumn(format="%.1f"),
             },
