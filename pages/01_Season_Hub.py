@@ -333,13 +333,15 @@ _so = query(
 super_over_count = int(_so.iloc[0]["cnt"]) if not _so.empty else 0
 
 st.subheader(f"IPL {selected_season}")
-id_cols = st.columns(6)
-id_cols[0].metric("Total Matches", format_number(int(m.get("total_matches", 0))))
-id_cols[1].metric("Teams", int(m.get("num_teams", 0)))
-id_cols[2].metric("Champion", str(m.get("champion", "—")) or "—")
-id_cols[3].metric("Duration", f"{int(m.get('duration_days', 0))} days")
-id_cols[4].metric("Super Overs", super_over_count)
-id_cols[5].metric("DLS Matches", int(m.get("dls_matches", 0)))
+id_row1 = st.columns(3)
+id_row1[0].metric("Total Matches", format_number(int(m.get("total_matches", 0))))
+id_row1[1].metric("Teams", int(m.get("num_teams", 0)))
+id_row1[2].metric("Champion", str(m.get("champion", "—")) or "—")
+
+id_row2 = st.columns(3)
+id_row2[0].metric("Duration", f"{int(m.get('duration_days', 0))} days")
+id_row2[1].metric("Super Overs", super_over_count)
+id_row2[2].metric("DLS Matches", int(m.get("dls_matches", 0)))
 
 dt1, dt2 = st.columns(2)
 dt1.caption(f"Start: **{m.get('start_date', '—')}**")

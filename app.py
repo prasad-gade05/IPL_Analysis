@@ -24,20 +24,31 @@ st.markdown(
     [data-testid="stSidebar"] { display: none; }
     [data-testid="stSidebarCollapsedControl"] { display: none; }
 
-    /* Force metric values, labels and deltas to wrap instead of overflow */
-    [data-testid="stMetricValue"] {
+    /* Force metric values, labels and deltas to wrap instead of overflow.
+       Streamlit's React component hardcodes truncate:true which generates
+       CSS-in-JS rules (overflow:hidden, white-space:nowrap, text-overflow:ellipsis)
+       on deeply nested inner elements via Emotion. Override with * wildcard. */
+    [data-testid="stMetricValue"],
+    [data-testid="stMetricValue"] *,
+    [data-testid="stMetricLabel"],
+    [data-testid="stMetricLabel"] *,
+    [data-testid="stMetricDelta"],
+    [data-testid="stMetricDelta"] * {
         white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: unset !important;
         overflow-wrap: break-word !important;
         word-wrap: break-word !important;
         word-break: break-word !important;
-        line-height: 1.3 !important;
-        font-size: clamp(1rem, 2.2vw, 1.6rem) !important;
     }
-    [data-testid="stMetricLabel"],
-    [data-testid="stMetricDelta"] {
-        white-space: normal !important;
-        overflow-wrap: break-word !important;
-        word-wrap: break-word !important;
+    [data-testid="stMetricValue"],
+    [data-testid="stMetricValue"] * {
+        line-height: 1.3 !important;
+    }
+
+    /* Also target the metric container and its parent column */
+    [data-testid="stMetric"] {
+        overflow: visible !important;
     }
 
     /* Prevent column content from overflowing */
@@ -47,9 +58,14 @@ st.markdown(
         min-width: 0;
     }
 
-    /* Top navigation buttons — larger and clearer */
-    [data-testid="stPageLink"] {
-        padding: 0.15rem 0 !important;
+    /* Top navigation buttons — larger and clearer.
+       Nav link component also uses CSS-in-JS truncation on inner elements. */
+    [data-testid="stPageLink"],
+    [data-testid="stPageLink"] div,
+    [data-testid="stPageLink"] span {
+        overflow: visible !important;
+        text-overflow: unset !important;
+        white-space: normal !important;
     }
     [data-testid="stPageLink"] p {
         font-size: 0.95rem !important;

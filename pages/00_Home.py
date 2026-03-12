@@ -301,11 +301,13 @@ def main():
         top_scorer, top_runs = load_latest_top_scorer(s_end)
         top_bowler, top_wkts = load_latest_top_wicket_taker(s_end)
 
-        h1, h2, h3, h4 = st.columns(4)
+        h1, h2 = st.columns(2)
         h1.metric("Champion", champion)
-        h2.metric("Top Run-Scorer", top_scorer, delta=f"{format_number(top_runs)} runs")
-        h3.metric("Top Wicket-Taker", top_bowler, delta=f"{top_wkts} wkts")
-        h4.metric("Matches Played", format_number(total_m))
+        h2.metric("Matches Played", format_number(total_m))
+
+        h3, h4 = st.columns(2)
+        h3.metric("Top Run-Scorer", top_scorer, delta=f"{format_number(top_runs)} runs")
+        h4.metric("Top Wicket-Taker", top_bowler, delta=f"{top_wkts} wkts")
     else:
         st.info(f"No data available for season {s_end}.")
 
