@@ -45,4 +45,12 @@ desktop.ini
 *.tmp
 *.temp
 
+# Keep original Data/ out of git (raw kaggle download)
 Data/
+
+# Keep raw CSV out (too large for git), processed parquets are committed
+data/raw/
+data/processed/ball_by_ball_cleaned.parquet
+
+# AI instructions are for dev reference only
+AI_Instructions/
