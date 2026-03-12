@@ -24,22 +24,41 @@ st.markdown(
     [data-testid="stSidebar"] { display: none; }
     [data-testid="stSidebarCollapsedControl"] { display: none; }
 
-    /* Allow text to wrap in metric cards and columns */
-    [data-testid="stMetricValue"],
+    /* Force metric values, labels and deltas to wrap instead of overflow */
+    [data-testid="stMetricValue"] {
+        white-space: normal !important;
+        overflow-wrap: break-word !important;
+        word-wrap: break-word !important;
+        word-break: break-word !important;
+        line-height: 1.3 !important;
+        font-size: clamp(1rem, 2.2vw, 1.6rem) !important;
+    }
     [data-testid="stMetricLabel"],
-    [data-testid="stMetricDelta"],
+    [data-testid="stMetricDelta"] {
+        white-space: normal !important;
+        overflow-wrap: break-word !important;
+        word-wrap: break-word !important;
+    }
+
+    /* Prevent column content from overflowing */
     [data-testid="column"] > div {
         overflow-wrap: break-word;
         word-wrap: break-word;
+        min-width: 0;
     }
 
-    /* Let page-link labels wrap instead of truncating */
+    /* Top navigation buttons — larger and clearer */
+    [data-testid="stPageLink"] {
+        padding: 0.15rem 0 !important;
+    }
     [data-testid="stPageLink"] p {
-        font-size: 0.82rem;
+        font-size: 0.95rem !important;
+        font-weight: 500 !important;
         white-space: normal !important;
         overflow: visible !important;
         text-overflow: unset !important;
-        line-height: 1.2;
+        line-height: 1.35;
+        padding: 0.25rem 0;
     }
 
     /* Ensure headings and captions wrap */
@@ -49,7 +68,7 @@ st.markdown(
         word-wrap: break-word;
     }
 
-    /* Compact top nav spacing */
+    /* Compact top nav row spacing */
     div[data-testid="stHorizontalBlock"]:first-of-type {
         gap: 0.25rem;
     }
