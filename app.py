@@ -16,7 +16,7 @@ st.set_page_config(
     },
 )
 
-# Hide the default sidebar and inject global overflow fixes
+# Hide the default sidebar and inject global styles
 st.markdown(
     """
     <style>
@@ -24,7 +24,7 @@ st.markdown(
     [data-testid="stSidebar"] { display: none; }
     [data-testid="stSidebarCollapsedControl"] { display: none; }
 
-    /* Prevent text overflow in columns and metric cards */
+    /* Allow text to wrap in metric cards and columns */
     [data-testid="stMetricValue"],
     [data-testid="stMetricLabel"],
     [data-testid="stMetricDelta"],
@@ -33,24 +33,25 @@ st.markdown(
         word-wrap: break-word;
     }
 
-    /* Ensure page link labels don't overflow */
+    /* Let page-link labels wrap instead of truncating */
     [data-testid="stPageLink"] p {
         font-size: 0.82rem;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: unset !important;
+        line-height: 1.2;
     }
 
-    /* Give metric labels more breathing room */
-    [data-testid="stMetricLabel"] {
-        font-size: 0.78rem !important;
-    }
-
-    /* Ensure subheaders and captions wrap properly */
+    /* Ensure headings and captions wrap */
     .stMarkdown h2, .stMarkdown h3, .stMarkdown h4,
     .stCaption, .stMarkdown p {
         overflow-wrap: break-word;
         word-wrap: break-word;
+    }
+
+    /* Compact top nav spacing */
+    div[data-testid="stHorizontalBlock"]:first-of-type {
+        gap: 0.25rem;
     }
     </style>
     """,
@@ -81,11 +82,14 @@ ALL_PAGES = [
 
 pg = st.navigation(ALL_PAGES, position="hidden")
 
-# --- Top Navigation Bar ---
-nav_cols = st.columns(len(ALL_PAGES))
-for i, page in enumerate(ALL_PAGES):
-    with nav_cols[i]:
-        st.page_link(page, label=page.title, use_container_width=True)
+# --- Top Navigation Bar (2 rows of 7) ---
+ROW_SIZE = 7
+for row_start in range(0, len(ALL_PAGES), ROW_SIZE):
+    row_pages = ALL_PAGES[row_start : row_start + ROW_SIZE]
+    cols = st.columns(ROW_SIZE)
+    for i, page in enumerate(row_pages):
+        with cols[i]:
+            st.page_link(page, label=page.title, use_container_width=True)
 
 st.divider()
 
