@@ -11,8 +11,8 @@ import numpy as np
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-INPUT = PROJECT_ROOT / "data" / "processed" / "ball_by_ball_cleaned.parquet"
-OUTPUT = PROJECT_ROOT / "data" / "processed" / "ball_by_ball.parquet"
+INPUT = PROJECT_ROOT / "Data" / "processed" / "ball_by_ball_cleaned.parquet"
+OUTPUT = PROJECT_ROOT / "Data" / "processed" / "ball_by_ball.parquet"
 
 
 # ── Block 1: Match Phase ─────────────────────────────────────────────────────

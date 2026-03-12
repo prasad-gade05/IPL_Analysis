@@ -11,8 +11,8 @@ import numpy as np
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-RAW_CSV = PROJECT_ROOT / "data" / "raw" / "ipl_ball_by_ball.csv"
-OUTPUT = PROJECT_ROOT / "data" / "processed" / "ball_by_ball_cleaned.parquet"
+RAW_CSV = PROJECT_ROOT / "Data" / "raw" / "ipl_ball_by_ball.csv"
+OUTPUT = PROJECT_ROOT / "Data" / "processed" / "ball_by_ball_cleaned.parquet"
 
 # ── Constants ────────────────────────────────────────────────────────────────
 

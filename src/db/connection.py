@@ -4,7 +4,7 @@ import duckdb
 import streamlit as st
 from pathlib import Path
 
-DATA_DIR = Path(__file__).parent.parent.parent / "data" / "processed"
+DATA_DIR = Path(__file__).parent.parent.parent / "Data" / "processed"
 
 PARQUET_VIEWS = {
     "balls": "ball_by_ball.parquet",
@@ -30,12 +30,21 @@ def get_connection():
     """Return a singleton DuckDB connection with all parquet views registered."""
     conn = duckdb.connect()
 
+    missing = []
     for view_name, filename in PARQUET_VIEWS.items():
         filepath = DATA_DIR / filename
         if filepath.exists():
             conn.execute(
                 f"CREATE VIEW IF NOT EXISTS {view_name} AS SELECT * FROM '{filepath}'"
             )
+        else:
+            missing.append(f"{view_name} -> {filepath}")
+
+    if missing:
+        import logging
+        logging.warning(
+            "Missing parquet files (views not created):\n  " + "\n  ".join(missing)
+        )
 
     return conn
 

@@ -14,8 +14,8 @@ import numpy as np
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-INPUT = PROJECT_ROOT / "data" / "processed" / "ball_by_ball.parquet"
-OUT_DIR = PROJECT_ROOT / "data" / "processed"
+INPUT = PROJECT_ROOT / "Data" / "processed" / "ball_by_ball.parquet"
+OUT_DIR = PROJECT_ROOT / "Data" / "processed"
 
 
 def save(df: pd.DataFrame, name: str) -> None:

@@ -7,8 +7,8 @@ import pytest
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).parent.parent
-DATA_RAW = PROJECT_ROOT / "data" / "raw"
-DATA_PROCESSED = PROJECT_ROOT / "data" / "processed"
+DATA_RAW = PROJECT_ROOT / "Data" / "raw"
+DATA_PROCESSED = PROJECT_ROOT / "Data" / "processed"
 
 
 class TestProjectStructure:
@@ -20,7 +20,7 @@ class TestProjectStructure:
     def test_directories_exist(self):
         assert (PROJECT_ROOT / "src").is_dir()
         assert (PROJECT_ROOT / "pages").is_dir()
-        assert (PROJECT_ROOT / "data" / "preprocessing").is_dir()
+        assert (PROJECT_ROOT / "Data" / "preprocessing").is_dir()
         assert (PROJECT_ROOT / ".streamlit").is_dir()
 
     def test_app_entry_point_exists(self):
