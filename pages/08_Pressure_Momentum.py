@@ -125,6 +125,48 @@ def _dot_ball_creators(s1, s2):
 
 
 @st.cache_data(ttl=3600)
+def _top_dot_ball_victims(s1, s2):
+    """Batters who face the most dot balls."""
+    return query(f"""
+        SELECT batter,
+               SUM(dots_faced)::INT                           AS total_dots,
+               SUM(balls)::INT                                AS total_balls,
+               ROUND(SUM(dots_faced) * 100.0
+                     / NULLIF(SUM(balls), 0), 1)              AS dot_pct,
+               SUM(runs)::INT                                 AS runs,
+               ROUND(SUM(runs) * 100.0
+                     / NULLIF(SUM(balls), 0), 1)              AS strike_rate
+        FROM   player_batting
+        WHERE  season BETWEEN {s1} AND {s2}
+        GROUP  BY batter
+        HAVING total_balls >= 300
+        ORDER  BY total_dots DESC
+        LIMIT  15
+    """)
+
+
+@st.cache_data(ttl=3600)
+def _best_dot_ball_avoiders(s1, s2):
+    """Batters with the lowest dot ball percentage (min 500 balls)."""
+    return query(f"""
+        SELECT batter,
+               SUM(dots_faced)::INT                           AS total_dots,
+               SUM(balls)::INT                                AS total_balls,
+               ROUND(SUM(dots_faced) * 100.0
+                     / NULLIF(SUM(balls), 0), 1)              AS dot_pct,
+               SUM(runs)::INT                                 AS runs,
+               ROUND(SUM(runs) * 100.0
+                     / NULLIF(SUM(balls), 0), 1)              AS strike_rate
+        FROM   player_batting
+        WHERE  season BETWEEN {s1} AND {s2}
+        GROUP  BY batter
+        HAVING total_balls >= 500
+        ORDER  BY dot_pct ASC
+        LIMIT  15
+    """)
+
+
+@st.cache_data(ttl=3600)
 def _phase_dot_pct(s1, s2):
     """Dot ball percentage by match phase."""
     return query(f"""
@@ -559,6 +601,56 @@ with tab_dots:
             )
             fig_phase = apply_ipl_style(fig_phase, height=400, show_legend=False)
             st.plotly_chart(fig_phase, width='stretch')
+
+    st.divider()
+
+    # 6. Top Dot Ball Players (batting side)
+    st.subheader("Top Dot Ball Players")
+    st.caption("Batters who face the most dot balls and those who avoid them best.")
+
+    col_e, col_f = st.columns(2)
+
+    with col_e:
+        st.markdown("**Most Dots Faced**")
+        victims_df = _top_dot_ball_victims(s1, s2)
+        if not victims_df.empty:
+            disp_v = victims_df[["batter", "total_dots", "total_balls",
+                                 "dot_pct", "runs", "strike_rate"]].copy()
+            disp_v.columns = ["Batter", "Dots Faced", "Balls",
+                              "Dot %", "Runs", "SR"]
+            st.dataframe(disp_v, use_container_width=True, hide_index=True)
+
+            fig_victims = px.bar(
+                victims_df.sort_values("total_dots", ascending=True),
+                x="total_dots", y="batter", orientation="h",
+                title="Top 15 — Most Dot Balls Faced",
+                text_auto=True,
+            )
+            apply_ipl_style(fig_victims, height=450, show_legend=False)
+            st.plotly_chart(fig_victims, use_container_width=True)
+        else:
+            st.info("No data for the selected season range.")
+
+    with col_f:
+        st.markdown("**Best Dot Ball Avoidance (min 500 balls)**")
+        avoiders_df = _best_dot_ball_avoiders(s1, s2)
+        if not avoiders_df.empty:
+            disp_a = avoiders_df[["batter", "total_dots", "total_balls",
+                                  "dot_pct", "runs", "strike_rate"]].copy()
+            disp_a.columns = ["Batter", "Dots Faced", "Balls",
+                              "Dot %", "Runs", "SR"]
+            st.dataframe(disp_a, use_container_width=True, hide_index=True)
+
+            fig_avoiders = px.bar(
+                avoiders_df.sort_values("dot_pct", ascending=False),
+                x="dot_pct", y="batter", orientation="h",
+                title="Top 15 — Lowest Dot Ball % (min 500 balls)",
+                text_auto=True,
+            )
+            apply_ipl_style(fig_avoiders, height=450, show_legend=False)
+            st.plotly_chart(fig_avoiders, use_container_width=True)
+        else:
+            st.info("No data for the selected season range.")
 
 
 # ── TAB 2: CHASE DYNAMICS ────────────────────────────────────────────
