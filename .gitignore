@@ -54,3 +54,4 @@ data/processed/ball_by_ball_cleaned.parquet
 
 # AI instructions are for dev reference only
 AI_Instructions/
+_temp_*
