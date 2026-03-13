@@ -8,9 +8,9 @@ task_categories:
   - tabular-regression
   - time-series-forecasting
 task_ids:
-  - binary-classification
-  - multiclass-classification
-  - regression
+  - tabular-multi-class-classification
+  - tabular-single-column-regression
+  - multivariate-time-series-forecasting
 tags:
   - cricket
   - ipl
@@ -26,7 +26,6 @@ size_categories:
 
 This dataset is an enriched version of the **IPL Dataset 2008-2025**.  
 It starts from the original Kaggle data and adds analytics-driven, derived attributes to improve usefulness for machine learning and advanced data analysis workflows.
-
 
 # Modifications & Derived Attributes
 
@@ -62,7 +61,6 @@ The final enriched file adds **27 derived attributes**:
 - `is_close_match` - `True` for close finishes (<=10 runs or <=2 wickets margin).
 - `toss_winner_is_batting` - `True` when toss winner chose batting first.
 
-
 # Data Format
 
 The published dataset is stored in **`.parquet`** format for efficient loading and processing.
@@ -71,12 +69,11 @@ The published dataset is stored in **`.parquet`** format for efficient loading a
 from datasets import load_dataset
 
 # From Hugging Face Hub
-ds = load_dataset("prasad-gade05/YOUR_DATASET_REPO")
+ds = load_dataset("prasad-gade05/ipl-enriched-2008-2025")
 
 # Optional: load local parquet files directly
 # ds = load_dataset("parquet", data_files={"train": "path/to/data.parquet"})
 ```
-
 
 # Usage
 
@@ -88,15 +85,14 @@ This dataset can be used for:
 - Feature-driven benchmarking for tabular ML models
 - Historical trend modeling across IPL seasons
 
-
 # Acknowledgements / Attribution
 
 Original base dataset:
 
-- **Name:** IPL Dataset 2008-2025  
-- **Source:** Kaggle  
-- **Creator:** **chaitu20**  
-- **URL:** https://www.kaggle.com/datasets/chaitu20/ipl-dataset2008-2025  
+- **Name:** IPL Dataset 2008-2025
+- **Source:** Kaggle
+- **Creator:** **chaitu20**
+- **URL:** https://www.kaggle.com/datasets/chaitu20/ipl-dataset2008-2025
 - **Original License:** **CC0 (Public Domain)**
 
 This Hugging Face version includes additional feature engineering and analytics-derived columns built on top of that original CC0 dataset.
