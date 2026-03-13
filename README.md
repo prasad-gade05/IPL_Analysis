@@ -155,3 +155,7 @@ IPL_Analysis/
 ## Data
 
 Dataset sourced from Kaggle: [IPL Dataset 2008–2025](https://www.kaggle.com/datasets/chaitu20/ipl-dataset2008-2025) by **chaitu20**.
+
+The Enriched Dataset created for this project with many derived attributes is also available on Hugging Face [Enriched IPL Dataset 2008–2025](https://huggingface.co/datasets/prasad-gade05/ipl-enriched-2008-2025)
+
+See [DatasetReadme.md](DatasetReadme.md)
