@@ -227,28 +227,6 @@ if mode == "Batter vs Bowler":
 
             st.divider()
 
-            # ── Phase-wise breakdown ──
-            st.subheader("Phase-wise Breakdown")
-            phase_df = balls_df[balls_df["valid_ball"] == 1].copy()
-            if "match_phase" in phase_df.columns and not phase_df["match_phase"].isna().all():
-                phase_stats = phase_df.groupby("match_phase").agg(
-                    Balls=("runs_batter", "count"),
-                    Runs=("runs_batter", "sum"),
-                    Dismissals=("wicket_kind", lambda x: x.notna().sum()),
-                ).reset_index()
-                phase_stats.rename(columns={"match_phase": "Phase"}, inplace=True)
-                phase_stats["SR"] = (phase_stats["Runs"] * 100.0 / phase_stats["Balls"]).round(1)
-                phase_order = {"powerplay": 0, "Powerplay": 0, "middle": 1, "Middle": 1, "death": 2, "Death": 2}
-                phase_stats["_order"] = phase_stats["Phase"].map(phase_order).fillna(9)
-                phase_stats = phase_stats.sort_values("_order").drop(columns=["_order"])
-                phase_stats["Phase"] = phase_stats["Phase"].str.capitalize()
-                st.dataframe(phase_stats[["Phase", "Balls", "Runs", "SR", "Dismissals"]],
-                             width='stretch', hide_index=True)
-            else:
-                st.info("Phase data not available for this matchup.")
-
-            st.divider()
-
             # ── Season-wise trend ──
             st.subheader("Season-wise Trend")
             valid_balls = balls_df[balls_df["valid_ball"] == 1].copy()
