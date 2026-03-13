@@ -1,5 +1,9 @@
 # IPL Analytics Platform
 
+**Live App:** https://analytics-ipl.streamlit.app/
+
+> **Note:** This app is hosted on Streamlit's free tier. If you see a screen saying _"This app has gone to sleep"_, it's not broken — just click the button to wake it up. Free hosting sleeps inactive apps to save resources for the open-source community. It'll be back in ~30 seconds!
+
 > **18 Seasons | 1,169 Matches | 703 Players | 37 Venues**
 
 A comprehensive, interactive analytics dashboard for Indian Premier League data (2008–2025),
@@ -10,6 +14,7 @@ For detailed technical documentation (architecture, data pipeline, schema, crick
 ## Quick Start
 
 ### Prerequisites
+
 - Python 3.11+
 - pip
 
@@ -113,14 +118,14 @@ IPL_Analysis/
 
 ## Tech Stack
 
-| Component | Technology |
-|-----------|-----------|
-| Frontend | Streamlit (multi-page app) |
-| Charts | Plotly (interactive) |
-| Query Engine | DuckDB (in-process analytical SQL) |
+| Component    | Technology                            |
+| ------------ | ------------------------------------- |
+| Frontend     | Streamlit (multi-page app)            |
+| Charts       | Plotly (interactive)                  |
+| Query Engine | DuckDB (in-process analytical SQL)    |
 | Data Storage | Apache Parquet (columnar, compressed) |
-| Hosting | Streamlit Community Cloud (free) |
-| Language | 100% Python |
+| Hosting      | Streamlit Community Cloud (free)      |
+| Language     | 100% Python                           |
 
 ## Dashboard Pages (14 total)
 
