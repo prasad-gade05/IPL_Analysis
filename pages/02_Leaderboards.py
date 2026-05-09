@@ -435,8 +435,8 @@ def _highest_chases(s1, s2, team=None):
             COALESCE(CASE WHEN c.chasing_team = m.team1 THEN m.team1_wickets
                           ELSE m.team2_wickets END, 0)::INT                         AS wickets,
             CASE WHEN c.chasing_team = m.team1 THEN m.team2 ELSE m.team1 END       AS opponent,
-            (CASE WHEN c.chasing_team = m.team1 THEN m.team2_score
-                  ELSE m.team1_score END)::INT                                      AS target,
+            ((CASE WHEN c.chasing_team = m.team1 THEN m.team2_score
+                   ELSE m.team1_score END) + 1)::INT                                AS target,
             m.venue,
             m.season
         FROM matches m

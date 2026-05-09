@@ -97,9 +97,9 @@ def get_run_rate_by_phase(venue):
         """
         SELECT match_phase,
                ROUND(
-                   SUM(runs_batter) * 6.0
-                   / NULLIF(SUM(CASE WHEN valid_ball THEN 1 ELSE 0 END), 0),
-               2) AS run_rate
+                    SUM(runs_total) * 6.0
+                    / NULLIF(SUM(CASE WHEN valid_ball THEN 1 ELSE 0 END), 0),
+                2) AS run_rate
         FROM balls
         WHERE venue = ? AND match_phase IS NOT NULL
         GROUP BY match_phase
@@ -119,9 +119,9 @@ def get_league_avg_run_rate():
         """
         SELECT match_phase,
                ROUND(
-                   SUM(runs_batter) * 6.0
-                   / NULLIF(SUM(CASE WHEN valid_ball THEN 1 ELSE 0 END), 0),
-               2) AS run_rate
+                    SUM(runs_total) * 6.0
+                    / NULLIF(SUM(CASE WHEN valid_ball THEN 1 ELSE 0 END), 0),
+                2) AS run_rate
         FROM balls
         WHERE match_phase IS NOT NULL
         GROUP BY match_phase
@@ -158,8 +158,7 @@ def get_wicket_types(venue):
                COUNT(*)    AS count
         FROM balls
         WHERE venue = ?
-          AND wicket_kind IS NOT NULL
-          AND wicket_kind != ''
+          AND wicket_kind NOT IN ('not_out', 'retired hurt')
         GROUP BY wicket_kind
         ORDER BY count DESC
         """,

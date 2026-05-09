@@ -52,7 +52,7 @@ def _playoff_matches(season: int) -> pd.DataFrame:
                match_won_by, player_of_match
         FROM matches
         WHERE season = ?
-          AND stage IN ('Qualifier 1', 'Qualifier 2', 'Eliminator', 'Final')
+          AND stage != 'League'
         ORDER BY date
     """, [season])
 

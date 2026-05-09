@@ -62,12 +62,10 @@ def _dismissal_prob_after_dots(s1, s2):
     return query(f"""
         SELECT consecutive_dots_before          AS dots,
                COUNT(*)::INT                    AS total_balls,
-               SUM(CASE WHEN wicket_kind IS NOT NULL
-                         AND wicket_kind != 'not_out'
+               SUM(CASE WHEN wicket_kind NOT IN ('not_out', 'retired hurt')
                     THEN 1 ELSE 0 END)::INT     AS wickets,
-               ROUND(SUM(CASE WHEN wicket_kind IS NOT NULL
-                               AND wicket_kind != 'not_out'
-                          THEN 1 ELSE 0 END) * 100.0
+               ROUND(SUM(CASE WHEN wicket_kind NOT IN ('not_out', 'retired hurt')
+                           THEN 1 ELSE 0 END) * 100.0
                      / NULLIF(COUNT(*), 0), 2)  AS wicket_pct
         FROM   balls
         WHERE  season BETWEEN {s1} AND {s2}

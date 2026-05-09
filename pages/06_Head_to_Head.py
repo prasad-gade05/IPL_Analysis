@@ -113,12 +113,10 @@ def load_top_wicket_takers(team_a, team_b, limit=10):
         """
         SELECT b.bowler AS player, b.bowling_team AS team,
                COUNT(DISTINCT b.match_id) AS matches,
-               COUNT(CASE WHEN b.wicket_kind IS NOT NULL
-                         AND b.wicket_kind NOT IN ('run out', 'retired hurt', 'retired out', 'obstructing the field')
-                    THEN 1 END) AS wickets,
-               SUM(b.runs_batter) AS runs_conceded,
+               SUM(b.bowler_wicket) AS wickets,
+               SUM(b.runs_bowler) AS runs_conceded,
                SUM(CASE WHEN b.valid_ball = 1 THEN 1 ELSE 0 END) AS balls_bowled,
-               ROUND(SUM(b.runs_batter) * 6.0 / NULLIF(SUM(CASE WHEN b.valid_ball = 1 THEN 1 ELSE 0 END), 0), 2) AS economy
+               ROUND(SUM(b.runs_bowler) * 6.0 / NULLIF(SUM(CASE WHEN b.valid_ball = 1 THEN 1 ELSE 0 END), 0), 2) AS economy
         FROM balls b
         JOIN matches m ON b.match_id = m.match_id
         WHERE ((m.team1 = ? AND m.team2 = ?) OR (m.team1 = ? AND m.team2 = ?))

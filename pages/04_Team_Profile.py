@@ -505,7 +505,7 @@ def get_highest_successful_chases(team, limit=5):
     return query(
         """
         SELECT team2_score       AS chase_score,
-               team1_score       AS target_score,
+               (team1_score + 1) AS target_score,
                team1             AS opponent,
                season, venue,
                win_margin_value  AS margin

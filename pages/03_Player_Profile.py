@@ -158,7 +158,7 @@ def get_run_scoring_breakdown(player):
             END AS run_type,
             COUNT(*) AS count
         FROM balls
-        WHERE batter = ? AND valid_ball = true
+        WHERE batter = ?
         GROUP BY run_type
         ORDER BY CASE run_type
             WHEN 'Dots' THEN 0 WHEN '1s' THEN 1 WHEN '2s' THEN 2
@@ -193,13 +193,22 @@ def get_batting_phase_stats(player):
 def get_over_by_over_batting(player):
     return query("""
         SELECT
-            over AS over_num,
-            ROUND(AVG(runs_batter), 2) AS avg_runs,
-            COUNT(*) AS balls_faced
-        FROM balls
-        WHERE batter = ? AND valid_ball = true
-        GROUP BY over
-        ORDER BY over
+            over_num,
+            ROUND(AVG(over_runs), 2) AS avg_runs,
+            SUM(over_balls) AS balls_faced
+        FROM (
+            SELECT
+                match_id,
+                innings,
+                over AS over_num,
+                SUM(runs_batter) AS over_runs,
+                SUM(CASE WHEN valid_ball THEN 1 ELSE 0 END) AS over_balls
+            FROM balls
+            WHERE batter = ?
+            GROUP BY match_id, innings, over
+        ) t
+        GROUP BY over_num
+        ORDER BY over_num
     """, [player])
 
 
@@ -232,7 +241,7 @@ def get_wicket_types(player):
             wicket_kind,
             COUNT(*) AS count
         FROM balls
-        WHERE bowler = ? AND wicket_kind IS NOT NULL AND player_out IS NOT NULL
+        WHERE bowler = ? AND bowler_wicket = 1
         GROUP BY wicket_kind
         ORDER BY count DESC
     """, [player])
@@ -244,10 +253,10 @@ def get_bowling_phase_stats(player):
         SELECT
             match_phase AS phase,
             SUM(CASE WHEN valid_ball THEN 1 ELSE 0 END) AS balls,
-            SUM(CASE WHEN wicket_kind IS NOT NULL AND player_out IS NOT NULL THEN 1 ELSE 0 END) AS wickets,
-            SUM(runs_batter) AS runs,
+            SUM(bowler_wicket) AS wickets,
+            SUM(runs_bowler) AS runs,
             CASE WHEN SUM(CASE WHEN valid_ball THEN 1 ELSE 0 END) > 0
-                 THEN ROUND(SUM(runs_batter) * 6.0 / SUM(CASE WHEN valid_ball THEN 1 ELSE 0 END), 2)
+                 THEN ROUND(SUM(runs_bowler) * 6.0 / SUM(CASE WHEN valid_ball THEN 1 ELSE 0 END), 2)
                  ELSE NULL END AS economy,
             CASE WHEN SUM(CASE WHEN valid_ball THEN 1 ELSE 0 END) > 0
                  THEN ROUND(SUM(is_dot) * 100.0 / SUM(CASE WHEN valid_ball THEN 1 ELSE 0 END), 1)
@@ -265,11 +274,11 @@ def get_over_by_over_bowling(player):
         SELECT
             over AS over_num,
             CASE WHEN SUM(CASE WHEN valid_ball THEN 1 ELSE 0 END) > 0
-                 THEN ROUND(SUM(runs_batter) * 6.0 / SUM(CASE WHEN valid_ball THEN 1 ELSE 0 END), 2)
+                 THEN ROUND(SUM(runs_bowler) * 6.0 / SUM(CASE WHEN valid_ball THEN 1 ELSE 0 END), 2)
                  ELSE NULL END AS economy,
             SUM(CASE WHEN valid_ball THEN 1 ELSE 0 END) AS balls_bowled
         FROM balls
-        WHERE bowler = ? AND valid_ball = true
+        WHERE bowler = ?
         GROUP BY over
         ORDER BY over
     """, [player])
@@ -396,6 +405,7 @@ def get_dismissal_types(player):
         SELECT wicket_kind, SUM(count) AS count
         FROM dismissals
         WHERE player_out = ?
+          AND wicket_kind != 'retired hurt'
         GROUP BY wicket_kind ORDER BY count DESC
     """, [player])
 
@@ -406,6 +416,7 @@ def get_dismissals_by_phase(player):
         SELECT match_phase, wicket_kind, SUM(count) AS count
         FROM dismissals_phase
         WHERE player_out = ?
+          AND wicket_kind != 'retired hurt'
         GROUP BY match_phase, wicket_kind
         ORDER BY CASE match_phase WHEN 'powerplay' THEN 1 WHEN 'middle' THEN 2 WHEN 'death' THEN 3 END
     """, [player])
@@ -416,7 +427,7 @@ def get_dismissals_by_over(player):
     return query("""
         SELECT over AS over_num, COUNT(*) AS count
         FROM balls
-        WHERE player_out = ? AND wicket_kind IS NOT NULL
+        WHERE player_out = ? AND wicket_kind != 'retired hurt'
         GROUP BY over ORDER BY over
     """, [player])
 

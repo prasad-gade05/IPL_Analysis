@@ -45,9 +45,8 @@ def load_headline_metrics(s_start: int, s_end: int) -> dict:
     df = query("""
         SELECT
             COUNT(DISTINCT match_id)    AS total_matches,
-            SUM(runs_batter)            AS total_runs,
-            COUNT(*) FILTER (WHERE wicket_kind IS NOT NULL
-                             AND wicket_kind NOT IN ('', 'not_out'))  AS total_wickets,
+            SUM(runs_total)             AS total_runs,
+            COUNT(*) FILTER (WHERE wicket_kind NOT IN ('not_out', 'retired hurt')) AS total_wickets,
             SUM(is_six)                 AS total_sixes,
             SUM(is_four)               AS total_fours,
             COUNT(DISTINCT batter)      AS unique_players

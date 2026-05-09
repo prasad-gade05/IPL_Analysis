@@ -19,6 +19,40 @@ st.markdown(big_number_style(), unsafe_allow_html=True)
 #  BATTING RECORD QUERIES
 # ═══════════════════════════════════════════════════════════════════════
 
+def _milestone_scores(milestone: int, balls_label: str, limit: int, fastest: bool) -> pd.DataFrame:
+    order_dir = "ASC" if fastest else "DESC"
+    tie_break_dir = "DESC" if fastest else "ASC"
+
+    return query(f"""
+        WITH milestone_marks AS (
+            SELECT match_id,
+                   innings,
+                   batter,
+                   MIN(batter_balls)::INT AS milestone_balls
+            FROM balls
+            WHERE batter_runs >= {milestone}
+            GROUP BY match_id, innings, batter
+        )
+        SELECT pb.batter                                                      AS Player,
+               pb.runs::INT                                                   AS Runs,
+               mm.milestone_balls                                             AS "{balls_label}",
+               pb.balls::INT                                                  AS "Final Balls",
+               pb.fours::INT                                                  AS "4s",
+               pb.sixes::INT                                                  AS "6s",
+               ROUND(pb.strike_rate, 1)                                       AS "Final SR",
+               CASE WHEN pb.batting_team = m.team1 THEN m.team2
+                    ELSE m.team1 END                                          AS "Vs",
+               pb.season                                                      AS Season
+        FROM player_batting pb
+        JOIN milestone_marks mm
+          ON pb.match_id = mm.match_id
+         AND pb.innings = mm.innings
+         AND pb.batter = mm.batter
+        JOIN matches m ON pb.match_id = m.match_id
+        ORDER BY mm.milestone_balls {order_dir}, pb.runs {tie_break_dir}
+        LIMIT {limit}
+    """)
+
 @st.cache_data(ttl=3600)
 def _highest_individual_scores():
     return query("""
@@ -41,42 +75,12 @@ def _highest_individual_scores():
 
 @st.cache_data(ttl=3600)
 def _fastest_fifties():
-    return query("""
-        SELECT pb.batter                                                      AS Player,
-               pb.runs::INT                                                   AS Runs,
-               pb.balls::INT                                                  AS Balls,
-               pb.fours::INT                                                  AS "4s",
-               pb.sixes::INT                                                  AS "6s",
-               ROUND(pb.strike_rate, 1)                                       AS SR,
-               CASE WHEN pb.batting_team = m.team1 THEN m.team2
-                    ELSE m.team1 END                                          AS "Vs",
-               pb.season                                                      AS Season
-        FROM player_batting pb
-        JOIN matches m ON pb.match_id = m.match_id
-        WHERE pb.is_fifty = true
-        ORDER BY pb.balls ASC, pb.runs DESC
-        LIMIT 15
-    """)
+    return _milestone_scores(50, "Balls to 50", 15, fastest=True)
 
 
 @st.cache_data(ttl=3600)
 def _fastest_centuries():
-    return query("""
-        SELECT pb.batter                                                      AS Player,
-               pb.runs::INT                                                   AS Runs,
-               pb.balls::INT                                                  AS Balls,
-               pb.fours::INT                                                  AS "4s",
-               pb.sixes::INT                                                  AS "6s",
-               ROUND(pb.strike_rate, 1)                                       AS SR,
-               CASE WHEN pb.batting_team = m.team1 THEN m.team2
-                    ELSE m.team1 END                                          AS "Vs",
-               pb.season                                                      AS Season
-        FROM player_batting pb
-        JOIN matches m ON pb.match_id = m.match_id
-        WHERE pb.is_hundred = true
-        ORDER BY pb.balls ASC, pb.runs DESC
-        LIMIT 10
-    """)
+    return _milestone_scores(100, "Balls to 100", 10, fastest=True)
 
 
 @st.cache_data(ttl=3600)
@@ -137,22 +141,7 @@ def _highest_sr_innings():
 
 @st.cache_data(ttl=3600)
 def _slowest_fifties():
-    return query("""
-        SELECT pb.batter                                                      AS Player,
-               pb.runs::INT                                                   AS Runs,
-               pb.balls::INT                                                  AS Balls,
-               ROUND(pb.strike_rate, 1)                                       AS SR,
-               pb.fours::INT                                                  AS "4s",
-               pb.sixes::INT                                                  AS "6s",
-               CASE WHEN pb.batting_team = m.team1 THEN m.team2
-                    ELSE m.team1 END                                          AS "Vs",
-               pb.season                                                      AS Season
-        FROM player_batting pb
-        JOIN matches m ON pb.match_id = m.match_id
-        WHERE pb.is_fifty = true
-        ORDER BY pb.balls DESC, pb.runs ASC
-        LIMIT 10
-    """)
+    return _milestone_scores(50, "Balls to 50", 10, fastest=False)
 
 
 @st.cache_data(ttl=3600)
@@ -437,13 +426,13 @@ def _highest_successful_chases():
         SELECT c.chasing_team                                                    AS Team,
                (CASE WHEN c.chasing_team = m.team1 THEN m.team1_score
                      ELSE m.team2_score END)::INT                                AS Score,
-               COALESCE(CASE WHEN c.chasing_team = m.team1 THEN m.team1_wickets
-                             ELSE m.team2_wickets END, 0)::INT                   AS Wickets,
-               CASE WHEN c.chasing_team = m.team1 THEN m.team2 ELSE m.team1 END AS "Vs",
-               (CASE WHEN c.chasing_team = m.team1 THEN m.team2_score
-                     ELSE m.team1_score END)::INT                                AS Target,
-               m.venue                                                           AS Venue,
-               m.season                                                          AS Season
+                COALESCE(CASE WHEN c.chasing_team = m.team1 THEN m.team1_wickets
+                              ELSE m.team2_wickets END, 0)::INT                   AS Wickets,
+                CASE WHEN c.chasing_team = m.team1 THEN m.team2 ELSE m.team1 END AS "Vs",
+                ((CASE WHEN c.chasing_team = m.team1 THEN m.team2_score
+                       ELSE m.team1_score END) + 1)::INT                          AS Target,
+                m.venue                                                           AS Venue,
+                m.season                                                          AS Season
         FROM matches m
         JOIN chasing c ON m.match_id = c.match_id
         WHERE m.match_won_by = c.chasing_team
@@ -734,9 +723,9 @@ with tab_bat:
 
     c1, c2 = st.columns(2)
     with c1:
-        _show_table(_fastest_fifties(), "Fastest Fifties (Top 15)")
+        _show_table(_fastest_fifties(), "Fastest Fifties (Top 15, Balls to 50)")
     with c2:
-        _show_table(_fastest_centuries(), "Fastest Centuries (Top 10)")
+        _show_table(_fastest_centuries(), "Fastest Centuries (Top 10, Balls to 100)")
 
     st.divider()
 
@@ -752,7 +741,7 @@ with tab_bat:
     with c1:
         _show_table(_highest_sr_innings(), "Highest SR in Innings (min 20 balls, Top 15)")
     with c2:
-        _show_table(_slowest_fifties(), "Slowest Fifties (Top 10)")
+        _show_table(_slowest_fifties(), "Slowest Fifties (Top 10, Balls to 50)")
 
     st.divider()
     _show_table(_most_runs_single_season(), "Most Runs in a Single Season (Top 15)")

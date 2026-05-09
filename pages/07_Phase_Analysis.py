@@ -228,7 +228,7 @@ def _phase_best_scores(phase, _s1, _s2, _inn):
                    MAX(batting_team) AS team,
                    MAX(bowling_team) AS vs,
                    SUM((runs_batter + runs_extras))   AS phase_runs,
-                   SUM(CASE WHEN wicket_kind IS NOT NULL THEN 1 ELSE 0 END)
+                   SUM(CASE WHEN wicket_kind NOT IN ('not_out', 'retired hurt') THEN 1 ELSE 0 END)
                        AS phase_wickets
             FROM   balls
             WHERE  match_phase = '{phase}'
@@ -252,12 +252,12 @@ def _phase_top_batters(phase, _s1, _s2, _inn):
                SUM(CASE WHEN valid_ball THEN 1 ELSE 0 END)::INT AS balls,
                ROUND(SUM(runs_batter) * 100.0
                      / NULLIF(SUM(CASE WHEN valid_ball THEN 1 ELSE 0 END), 0), 2) AS sr,
-               (SUM(CASE WHEN is_four THEN 1 ELSE 0 END)
-                + SUM(CASE WHEN is_six THEN 1 ELSE 0 END))::INT AS boundaries,
-               ROUND(SUM(runs_batter) * 1.0
-                     / NULLIF(SUM(CASE WHEN wicket_kind IS NOT NULL
-                                       AND player_out = batter
-                                  THEN 1 ELSE 0 END), 0), 2) AS avg
+                (SUM(CASE WHEN is_four THEN 1 ELSE 0 END)
+                 + SUM(CASE WHEN is_six THEN 1 ELSE 0 END))::INT AS boundaries,
+                ROUND(SUM(runs_batter) * 1.0
+                     / NULLIF(SUM(CASE WHEN player_out = batter
+                                       AND wicket_kind != 'retired hurt'
+                                   THEN 1 ELSE 0 END), 0), 2) AS avg
         FROM   balls
         WHERE  match_phase = '{phase}'
           AND  season BETWEEN {_s1} AND {_s2} {_inn}
@@ -274,10 +274,7 @@ def _phase_top_bowlers(phase, _s1, _s2, _inn):
         SELECT bowler,
                SUM(CASE WHEN valid_ball THEN 1 ELSE 0 END)::INT AS balls,
                SUM(runs_bowler)::INT AS runs,
-               SUM(CASE WHEN wicket_kind IS NOT NULL
-                         AND wicket_kind NOT IN ('run out', 'retired hurt',
-                                                 'retired out', 'obstructing the field')
-                    THEN 1 ELSE 0 END)::INT AS wickets,
+               SUM(bowler_wicket)::INT AS wickets,
                ROUND(SUM(runs_bowler) * 6.0
                      / NULLIF(SUM(CASE WHEN valid_ball THEN 1 ELSE 0 END), 0), 2) AS economy,
                ROUND(SUM(CASE WHEN is_dot THEN 1 ELSE 0 END) * 100.0
@@ -356,7 +353,7 @@ def _phase_boundary_dist(_s1, _s2, _inn):
 def _phase_wicket_dist(_s1, _s2, _inn):
     df = query(f"""
         SELECT match_phase,
-               SUM(CASE WHEN wicket_kind IS NOT NULL THEN 1 ELSE 0 END)::INT AS wickets
+               SUM(CASE WHEN wicket_kind NOT IN ('not_out', 'retired hurt') THEN 1 ELSE 0 END)::INT AS wickets
         FROM   balls
         WHERE  match_phase IS NOT NULL
           AND  season BETWEEN {_s1} AND {_s2} {_inn}
@@ -405,10 +402,10 @@ def _over_by_over(_s1, _s2, _inn):
                    ROUND(SUM((runs_batter + runs_extras)) * 1.0
                          / COUNT(DISTINCT match_id || '-'
                                  || CAST(innings AS VARCHAR)), 2)    AS avg_runs,
-                   ROUND(SUM(CASE WHEN wicket_kind IS NOT NULL
-                             THEN 1 ELSE 0 END) * 100.0
-                         / NULLIF(SUM(CASE WHEN valid_ball
-                                      THEN 1 ELSE 0 END), 0), 2)   AS wicket_pct,
+                   ROUND(SUM(CASE WHEN wicket_kind NOT IN ('not_out', 'retired hurt')
+                              THEN 1 ELSE 0 END) * 100.0
+                          / NULLIF(SUM(CASE WHEN valid_ball
+                                       THEN 1 ELSE 0 END), 0), 2)   AS wicket_pct,
                    ROUND(SUM(CASE WHEN is_boundary THEN 1 ELSE 0 END) * 100.0
                          / NULLIF(SUM(CASE WHEN valid_ball
                                       THEN 1 ELSE 0 END), 0), 2)   AS boundary_pct,
@@ -659,7 +656,7 @@ with tab_compare:
     if not contrib_df.empty:
         fig = px.bar(
             contrib_df, x="season", y="avg_runs", color="match_phase",
-            title="Phase Contribution to Total Score",
+            title="Average Phase Runs per Innings",
             color_discrete_map=phase_cmap,
             category_orders={"match_phase": ["Powerplay", "Middle", "Death"]},
             barmode="stack", text_auto=True,

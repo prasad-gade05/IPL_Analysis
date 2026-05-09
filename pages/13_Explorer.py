@@ -197,25 +197,25 @@ PRESET_CATEGORIES: dict[str, dict[str, dict]] = {
         },
         "Best Death Over Bowlers (min 200 balls)": {
             "sql": """
-                SELECT b.bowler AS Bowler, COUNT(*) AS Balls,
-                       SUM(b.runs_batter + b.runs_extras) AS Runs,
-                       SUM(CASE WHEN b.player_out IS NOT NULL THEN 1 ELSE 0 END) AS Wickets,
-                       ROUND(SUM(b.runs_batter + b.runs_extras)*6.0/COUNT(*),2) AS Economy
+                SELECT b.bowler AS Bowler, SUM(CASE WHEN b.valid_ball THEN 1 ELSE 0 END) AS Balls,
+                       SUM(b.runs_bowler) AS Runs,
+                       SUM(b.bowler_wicket) AS Wickets,
+                       ROUND(SUM(b.runs_bowler)*6.0/NULLIF(SUM(CASE WHEN b.valid_ball THEN 1 ELSE 0 END),0),2) AS Economy
                 FROM balls b
-                WHERE b.match_phase = 'death' AND b.valid_ball = true
-                GROUP BY b.bowler HAVING COUNT(*) >= 200
+                WHERE b.match_phase = 'death'
+                GROUP BY b.bowler HAVING SUM(CASE WHEN b.valid_ball THEN 1 ELSE 0 END) >= 200
                 ORDER BY Economy ASC LIMIT 15
             """, "chart": "bar", "x": "Bowler", "y": "Economy",
         },
         "Best Powerplay Bowlers (min 200 balls)": {
             "sql": """
-                SELECT b.bowler AS Bowler, COUNT(*) AS Balls,
-                       SUM(b.runs_batter + b.runs_extras) AS Runs,
-                       SUM(CASE WHEN b.player_out IS NOT NULL THEN 1 ELSE 0 END) AS Wickets,
-                       ROUND(SUM(b.runs_batter + b.runs_extras)*6.0/COUNT(*),2) AS Economy
+                SELECT b.bowler AS Bowler, SUM(CASE WHEN b.valid_ball THEN 1 ELSE 0 END) AS Balls,
+                       SUM(b.runs_bowler) AS Runs,
+                       SUM(b.bowler_wicket) AS Wickets,
+                       ROUND(SUM(b.runs_bowler)*6.0/NULLIF(SUM(CASE WHEN b.valid_ball THEN 1 ELSE 0 END),0),2) AS Economy
                 FROM balls b
-                WHERE b.match_phase = 'powerplay' AND b.valid_ball = true
-                GROUP BY b.bowler HAVING COUNT(*) >= 200
+                WHERE b.match_phase = 'powerplay'
+                GROUP BY b.bowler HAVING SUM(CASE WHEN b.valid_ball THEN 1 ELSE 0 END) >= 200
                 ORDER BY Economy ASC LIMIT 15
             """, "chart": "bar", "x": "Bowler", "y": "Economy",
         },
@@ -474,13 +474,13 @@ PRESET_CATEGORIES: dict[str, dict[str, dict]] = {
         },
         "Death Over Specialists — Batters (SR in overs 16-20)": {
             "sql": """
-                SELECT b.batter AS Batter, COUNT(*) AS Balls,
+                SELECT b.batter AS Batter, SUM(CASE WHEN b.valid_ball THEN 1 ELSE 0 END) AS Balls,
                        SUM(b.runs_batter) AS Runs,
-                       ROUND(SUM(b.runs_batter)*100.0/COUNT(*),2) AS SR,
+                       ROUND(SUM(b.runs_batter)*100.0/NULLIF(SUM(CASE WHEN b.valid_ball THEN 1 ELSE 0 END),0),2) AS SR,
                        SUM(CASE WHEN b.is_six THEN 1 ELSE 0 END) AS Sixes
                 FROM balls b
-                WHERE b.match_phase = 'death' AND b.valid_ball = true
-                GROUP BY b.batter HAVING COUNT(*) >= 200
+                WHERE b.match_phase = 'death'
+                GROUP BY b.batter HAVING SUM(CASE WHEN b.valid_ball THEN 1 ELSE 0 END) >= 200
                 ORDER BY SR DESC LIMIT 15
             """, "chart": "bar", "x": "Batter", "y": "SR",
         },
@@ -539,14 +539,14 @@ PRESET_CATEGORIES: dict[str, dict[str, dict]] = {
         },
         "Best in Finals & Knockouts": {
             "sql": """
-                SELECT batter AS Player, SUM(runs) AS Runs,
-                       SUM(balls) AS Balls, COUNT(*) AS Innings,
-                       ROUND(SUM(runs)*100.0/NULLIF(SUM(balls),0),2) AS SR,
-                       SUM(sixes) AS Sixes
-                FROM player_batting
-                WHERE season IN (SELECT DISTINCT season FROM matches WHERE stage IN ('Final','Qualifier 1','Qualifier 2','Eliminator'))
-                  AND venue IN (SELECT DISTINCT venue FROM matches WHERE stage IN ('Final','Qualifier 1','Qualifier 2','Eliminator'))
-                GROUP BY batter HAVING SUM(balls) >= 50
+                SELECT pb.batter AS Player, SUM(pb.runs) AS Runs,
+                       SUM(pb.balls) AS Balls, COUNT(*) AS Innings,
+                       ROUND(SUM(pb.runs)*100.0/NULLIF(SUM(pb.balls),0),2) AS SR,
+                       SUM(pb.sixes) AS Sixes
+                FROM player_batting pb
+                JOIN matches m ON pb.match_id = m.match_id
+                WHERE m.stage != 'League'
+                GROUP BY pb.batter HAVING SUM(pb.balls) >= 50
                 ORDER BY Runs DESC LIMIT 15
             """, "chart": "bar", "x": "Player", "y": "Runs",
         },
@@ -625,8 +625,8 @@ PRESET_CATEGORIES: dict[str, dict[str, dict]] = {
             "sql": """
                 SELECT wicket_kind AS Dismissal_Type,
                        COUNT(*) AS Total,
-                       ROUND(COUNT(*)*100.0/(SELECT COUNT(*) FROM balls WHERE player_out IS NOT NULL),1) AS Pct
-                FROM balls WHERE player_out IS NOT NULL AND wicket_kind IS NOT NULL
+                       ROUND(COUNT(*)*100.0/(SELECT COUNT(*) FROM balls WHERE wicket_kind NOT IN ('not_out', 'retired hurt')),1) AS Pct
+                FROM balls WHERE wicket_kind NOT IN ('not_out', 'retired hurt')
                 GROUP BY wicket_kind ORDER BY Total DESC
             """, "chart": "bar", "x": "Dismissal_Type", "y": "Total",
         },
@@ -1025,7 +1025,7 @@ def _build_ball_query(
             elif bt == "Dot Balls":
                 type_conditions.append("is_dot = true")
             elif bt == "Wickets":
-                type_conditions.append("player_out IS NOT NULL")
+                type_conditions.append("wicket_kind NOT IN ('not_out', 'retired hurt')")
         if type_conditions:
             where_parts.append(f"({' OR '.join(type_conditions)})")
     if dismissal_kinds:

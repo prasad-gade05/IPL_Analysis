@@ -458,6 +458,13 @@ def render_worm(match: pd.Series, balls_df: pd.DataFrame):
 
     fig = go.Figure()
     innings_cum: dict[int, pd.DataFrame] = {}
+    chase_target = (
+        balls_df.loc[balls_df["innings"] == 2, "runs_target"]
+        .dropna()
+        .astype(int)
+        .head(1)
+    )
+    target = int(chase_target.iloc[0]) if not chase_target.empty else None
 
     for inn_num in [1, 2]:
         inn = (
@@ -519,7 +526,8 @@ def render_worm(match: pd.Series, balls_df: pd.DataFrame):
 
     # Target line
     if 1 in innings_cum and 2 in innings_cum:
-        target = int(innings_cum[1]["cum_runs"].iloc[-1]) + 1
+        if target is None:
+            target = int(innings_cum[1]["cum_runs"].iloc[-1]) + 1
         fig.add_hline(
             y=target, line_dash="dash", line_color="rgba(255,255,255,0.6)",
             annotation_text=f"Target: {target}",
@@ -537,17 +545,23 @@ def render_worm(match: pd.Series, balls_df: pd.DataFrame):
 
     # ── Required Run Rate vs Current Run Rate (2nd innings) ──
     if 1 in innings_cum and 2 in innings_cum:
-        target = int(innings_cum[1]["cum_runs"].iloc[-1]) + 1
-        chase = innings_cum[2][innings_cum[2]["over_num"] > 0].copy()
-        if not chase.empty:
-            chase["CRR"] = (chase["cum_runs"] / chase["over_num"]).round(2)
-            chase["RRR"] = chase.apply(
-                lambda r: max(
-                    0.0,
-                    round((target - r["cum_runs"]) / max(20 - r["over_num"], 0.1), 2),
-                ),
-                axis=1,
+        if match.get("method") == "no_dls":
+            chase = (
+                balls_df[
+                    (balls_df["innings"] == 2)
+                    & (balls_df["valid_ball"] == True)
+                ]
+                .sort_values(["over", "ball"])
+                .groupby("over", as_index=False)
+                .agg(
+                    over_num=("over", "max"),
+                    CRR=("current_run_rate", "last"),
+                    RRR=("required_run_rate", "last"),
+                )
             )
+        else:
+            chase = pd.DataFrame()
+        if not chase.empty:
             fig_rr = go.Figure()
             fig_rr.add_trace(go.Scatter(
                 x=chase["over_num"], y=chase["CRR"],
@@ -566,6 +580,11 @@ def render_worm(match: pd.Series, balls_df: pd.DataFrame):
             )
             apply_ipl_style(fig_rr, height=400)
             st.plotly_chart(fig_rr, width='stretch')
+        elif match.get("method") != "no_dls":
+            st.info(
+                "Required run rate is hidden for D/L matches because the processed data "
+                "does not yet store the revised over limit."
+            )
 
 
 # ─────────────────────────────────────────────────────────────────
