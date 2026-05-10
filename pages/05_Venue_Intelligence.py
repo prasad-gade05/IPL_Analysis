@@ -20,6 +20,10 @@ from src.visualizations.theme import (
 )
 from src.utils.constants import TEAM_COLORS, ALL_SEASONS
 from src.utils.formatters import format_number, format_strike_rate, format_average
+from src.utils.control_renderer import active_control_chips, render_visual_controls
+from src.utils.control_schema import VisualSpec
+from src.utils.visual_specs import limit_control
+from src.visualizations.card_renderer import render_active_filters, render_dataframe
 
 # ---------------------------------------------------------------------------
 # Cached query helpers
@@ -227,6 +231,7 @@ def get_team_performance(venue):
 
 @st.cache_data(ttl=3600)
 def get_top_run_scorers(venue, limit=10):
+    limit = max(1, min(int(limit), 50))
     return query(
         """
         SELECT batter,
@@ -249,6 +254,7 @@ def get_top_run_scorers(venue, limit=10):
 
 @st.cache_data(ttl=3600)
 def get_top_wicket_takers(venue, limit=10):
+    limit = max(1, min(int(limit), 50))
     return query(
         """
         SELECT bowler,
@@ -270,6 +276,7 @@ def get_top_wicket_takers(venue, limit=10):
 
 @st.cache_data(ttl=3600)
 def get_highest_scores(venue, limit=10):
+    limit = max(1, min(int(limit), 50))
     return query(
         """
         SELECT batter,
@@ -598,8 +605,17 @@ else:
     left, right = st.columns(2)
 
     with left:
-        st.subheader("Top Run Scorers")
-        batters_df = get_top_run_scorers(selected_venue)
+        batters_spec = VisualSpec(
+            id="venue_top_scorers",
+            title="Top Run Scorers",
+            controls=[limit_control(default=10, minimum=5, maximum=25)],
+            empty_state_help="No batting data available."
+        )
+        st.subheader(batters_spec.title)
+        batters_controls = render_visual_controls(batters_spec)
+        render_active_filters(active_control_chips(batters_spec, batters_controls))
+        
+        batters_df = get_top_run_scorers(selected_venue, limit=batters_controls.get("limit", 10))
         if not batters_df.empty:
             batters_display = batters_df.rename(
                 columns={
@@ -608,18 +624,28 @@ else:
                     "strike_rate": "SR", "fours": "4s", "sixes": "6s",
                 }
             )
-            st.dataframe(
-                batters_display, width='stretch', hide_index=True,
+            render_dataframe(
+                batters_display,
+                batters_spec.empty_state_help,
                 column_config={
                     "SR": st.column_config.NumberColumn(format="%.1f"),
-                },
+                }
             )
         else:
-            st.info("No batting data available.")
+            render_dataframe(pd.DataFrame(), batters_spec.empty_state_help)
 
     with right:
-        st.subheader("Top Wicket Takers")
-        bowlers_df = get_top_wicket_takers(selected_venue)
+        bowlers_spec = VisualSpec(
+            id="venue_top_bowlers",
+            title="Top Wicket Takers",
+            controls=[limit_control(default=10, minimum=5, maximum=25)],
+            empty_state_help="No bowling data available."
+        )
+        st.subheader(bowlers_spec.title)
+        bowlers_controls = render_visual_controls(bowlers_spec)
+        render_active_filters(active_control_chips(bowlers_spec, bowlers_controls))
+        
+        bowlers_df = get_top_wicket_takers(selected_venue, limit=bowlers_controls.get("limit", 10))
         if not bowlers_df.empty:
             bowlers_display = bowlers_df.rename(
                 columns={
@@ -628,21 +654,31 @@ else:
                     "strike_rate": "SR",
                 }
             )
-            st.dataframe(
-                bowlers_display, width='stretch', hide_index=True,
+            render_dataframe(
+                bowlers_display,
+                bowlers_spec.empty_state_help,
                 column_config={
                     "Econ": st.column_config.NumberColumn(format="%.2f"),
                     "SR": st.column_config.NumberColumn(format="%.1f"),
-                },
+                }
             )
         else:
-            st.info("No bowling data available.")
+            render_dataframe(pd.DataFrame(), bowlers_spec.empty_state_help)
 
     st.divider()
 
     # ---- Highest Individual Scores ----
-    st.subheader("Highest Individual Scores")
-    highest_df = get_highest_scores(selected_venue)
+    highest_spec = VisualSpec(
+        id="venue_highest_scores",
+        title="Highest Individual Scores",
+        controls=[limit_control(default=10, minimum=5, maximum=25)],
+        empty_state_help="No individual scores data available."
+    )
+    st.subheader(highest_spec.title)
+    highest_controls = render_visual_controls(highest_spec)
+    render_active_filters(active_control_chips(highest_spec, highest_controls))
+    
+    highest_df = get_highest_scores(selected_venue, limit=highest_controls.get("limit", 10))
     if not highest_df.empty:
         highest_display = highest_df.rename(
             columns={
@@ -651,11 +687,12 @@ else:
                 "batting_team": "Team", "season": "Season",
             }
         )
-        st.dataframe(
-            highest_display, width='stretch', hide_index=True,
+        render_dataframe(
+            highest_display,
+            highest_spec.empty_state_help,
             column_config={
                 "SR": st.column_config.NumberColumn(format="%.1f"),
-            },
+            }
         )
     else:
-        st.info("No individual scores data available.")
+        render_dataframe(pd.DataFrame(), highest_spec.empty_state_help)

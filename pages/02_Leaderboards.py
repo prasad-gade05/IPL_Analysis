@@ -15,26 +15,72 @@ from src.utils.formatters import (
     format_number, format_strike_rate, format_economy,
     format_average, format_overs,
 )
+from src.utils.control_renderer import render_visual_controls, active_control_chips
+from src.utils.control_schema import VisualSpec
+from src.utils.visual_specs import limit_control, number_control, season_range_control, select_control
+from src.visualizations.card_renderer import render_active_filters
 
 st.title("Leaderboards")
 st.markdown(big_number_style(), unsafe_allow_html=True)
 
-# ── Filters ────────────────────────────────────────────────────────────
-fc1, fc2 = st.columns([2, 1])
-with fc1:
-    s1, s2 = st.slider(
-        "Season range",
-        min_value=min(ALL_SEASONS),
-        max_value=max(ALL_SEASONS),
-        value=(min(ALL_SEASONS), max(ALL_SEASONS)),
-        key="lb_season_range",
-    )
-with fc2:
-    teams_df = query("SELECT DISTINCT team FROM team_season ORDER BY team")
-    team_options = ["All Teams"] + teams_df["team"].tolist()
-    selected_team = st.selectbox("Team (optional)", team_options, key="lb_team")
+DEFAULT_SEASON_RANGE = (min(ALL_SEASONS), max(ALL_SEASONS))
 
-team_filter = selected_team if selected_team != "All Teams" else None
+
+# ═══════════════════════════════════════════════════════════════════════
+#  HELPER FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════════
+
+def _sanitize_season_range(season_range: tuple[int, int] | None = None) -> tuple[int, int]:
+    if season_range is None:
+        return DEFAULT_SEASON_RANGE
+    start, end = season_range
+    start = max(DEFAULT_SEASON_RANGE[0], int(start))
+    end = min(DEFAULT_SEASON_RANGE[1], int(end))
+    return (start, end) if start <= end else (end, start)
+
+
+def _season_condition(column: str, season_range: tuple[int, int] | None = None) -> str:
+    start, end = _sanitize_season_range(season_range)
+    return f"{column} BETWEEN {start} AND {end}"
+
+
+def _sanitize_limit(limit: int | None, default: int) -> int:
+    return max(1, int(limit or default))
+
+
+def _sanitize_minimum(value: int | None, default: int, minimum: int = 1) -> int:
+    return max(minimum, int(default if value is None else value))
+
+
+def _team_filter_clause(team: str | None) -> str:
+    return f"AND batting_team = '{team}'" if team else ""
+
+
+def _team_filter_clause_bowling(team: str | None) -> str:
+    return f"AND bowling_team = '{team}'" if team else ""
+
+
+def _visual_spec(
+    visual_id: str,
+    title: str,
+    *,
+    description: str = "",
+    default_limit: int | None = None,
+    extra_controls: list | None = None,
+    empty_state_help: str = "No data found for the selected filters.",
+) -> VisualSpec:
+    controls = [season_range_control()]
+    if default_limit is not None:
+        controls.append(limit_control(default=default_limit, minimum=1, maximum=max(50, default_limit)))
+    if extra_controls:
+        controls.extend(extra_controls)
+    return VisualSpec(
+        id=visual_id,
+        title=title,
+        description=description,
+        controls=controls,
+        empty_state_help=empty_state_help,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -44,8 +90,10 @@ team_filter = selected_team if selected_team != "All Teams" else None
 # ── Batting ────────────────────────────────────────────────────────────
 
 @st.cache_data(ttl=3600)
-def _career_runs(s1, s2, team=None):
-    tf = f"AND batting_team = '{team}'" if team else ""
+def _career_runs(season_range=DEFAULT_SEASON_RANGE, team=None, limit=15):
+    season_filter = _season_condition("season", season_range)
+    tf = _team_filter_clause(team)
+    limit = _sanitize_limit(limit, 15)
     return query(f"""
         SELECT batter,
                SUM(runs)::INT                                                         AS total_runs,
@@ -58,46 +106,52 @@ def _career_runs(s1, s2, team=None):
                SUM(fours)::INT                                                         AS fours,
                SUM(sixes)::INT                                                         AS sixes
         FROM player_batting
-        WHERE season BETWEEN {s1} AND {s2} {tf}
+        WHERE {season_filter} {tf}
         GROUP BY batter
         ORDER BY total_runs DESC
-        LIMIT 15
+        LIMIT {limit}
     """)
 
 
 @st.cache_data(ttl=3600)
-def _most_centuries(s1, s2, team=None):
-    tf = f"AND batting_team = '{team}'" if team else ""
+def _most_centuries(season_range=DEFAULT_SEASON_RANGE, team=None, limit=10):
+    season_filter = _season_condition("season", season_range)
+    tf = _team_filter_clause(team)
+    limit = _sanitize_limit(limit, 10)
     return query(f"""
         SELECT batter,
                SUM(CASE WHEN is_hundred THEN 1 ELSE 0 END)::INT AS hundreds
         FROM player_batting
-        WHERE season BETWEEN {s1} AND {s2} {tf}
+        WHERE {season_filter} {tf}
         GROUP BY batter
         HAVING hundreds > 0
         ORDER BY hundreds DESC
-        LIMIT 10
+        LIMIT {limit}
     """)
 
 
 @st.cache_data(ttl=3600)
-def _most_fifties(s1, s2, team=None):
-    tf = f"AND batting_team = '{team}'" if team else ""
+def _most_fifties(season_range=DEFAULT_SEASON_RANGE, team=None, limit=10):
+    season_filter = _season_condition("season", season_range)
+    tf = _team_filter_clause(team)
+    limit = _sanitize_limit(limit, 10)
     return query(f"""
         SELECT batter,
                SUM(CASE WHEN is_fifty THEN 1 ELSE 0 END)::INT AS fifties
         FROM player_batting
-        WHERE season BETWEEN {s1} AND {s2} {tf}
+        WHERE {season_filter} {tf}
         GROUP BY batter
         HAVING fifties > 0
         ORDER BY fifties DESC
-        LIMIT 10
+        LIMIT {limit}
     """)
 
 
 @st.cache_data(ttl=3600)
-def _highest_scores(s1, s2, team=None):
+def _highest_scores(season_range=DEFAULT_SEASON_RANGE, team=None, limit=20):
+    season_filter = _season_condition("pb.season", season_range)
     tf = f"AND pb.batting_team = '{team}'" if team else ""
+    limit = _sanitize_limit(limit, 20)
     return query(f"""
         SELECT pb.batter,
                pb.runs::INT                                                     AS score,
@@ -110,15 +164,18 @@ def _highest_scores(s1, s2, team=None):
                pb.season
         FROM player_batting pb
         JOIN matches m ON pb.match_id = m.match_id
-        WHERE pb.season BETWEEN {s1} AND {s2} {tf}
+        WHERE {season_filter} {tf}
         ORDER BY pb.runs DESC, pb.balls ASC
-        LIMIT 20
+        LIMIT {limit}
     """)
 
 
 @st.cache_data(ttl=3600)
-def _best_batting_avg(s1, s2, team=None):
-    tf = f"AND batting_team = '{team}'" if team else ""
+def _best_batting_avg(season_range=DEFAULT_SEASON_RANGE, team=None, limit=15, min_innings=30):
+    season_filter = _season_condition("season", season_range)
+    tf = _team_filter_clause(team)
+    limit = _sanitize_limit(limit, 15)
+    min_innings = _sanitize_minimum(min_innings, 30, 1)
     return query(f"""
         SELECT batter,
                COUNT(*)::INT                                                           AS innings,
@@ -127,17 +184,20 @@ def _best_batting_avg(s1, s2, team=None):
                ROUND(SUM(runs)*1.0 / NULLIF(SUM(CASE WHEN was_out THEN 1 ELSE 0 END),0), 2) AS avg,
                ROUND(SUM(runs)*100.0 / NULLIF(SUM(balls),0), 1)                       AS sr
         FROM player_batting
-        WHERE season BETWEEN {s1} AND {s2} {tf}
+        WHERE {season_filter} {tf}
         GROUP BY batter
-        HAVING COUNT(*) >= 30
+        HAVING COUNT(*) >= {min_innings}
         ORDER BY avg DESC
-        LIMIT 15
+        LIMIT {limit}
     """)
 
 
 @st.cache_data(ttl=3600)
-def _best_batting_sr(s1, s2, team=None):
-    tf = f"AND batting_team = '{team}'" if team else ""
+def _best_batting_sr(season_range=DEFAULT_SEASON_RANGE, team=None, limit=15, min_balls=500):
+    season_filter = _season_condition("season", season_range)
+    tf = _team_filter_clause(team)
+    limit = _sanitize_limit(limit, 15)
+    min_balls = _sanitize_minimum(min_balls, 500, 1)
     return query(f"""
         SELECT batter,
                SUM(balls)::INT   AS total_balls,
@@ -146,17 +206,19 @@ def _best_batting_sr(s1, s2, team=None):
                ROUND(SUM(runs)*100.0 / NULLIF(SUM(balls),0), 1)                       AS sr,
                ROUND(SUM(runs)*1.0 / NULLIF(SUM(CASE WHEN was_out THEN 1 ELSE 0 END),0), 2) AS avg
         FROM player_batting
-        WHERE season BETWEEN {s1} AND {s2} {tf}
+        WHERE {season_filter} {tf}
         GROUP BY batter
-        HAVING SUM(balls) >= 500
+        HAVING SUM(balls) >= {min_balls}
         ORDER BY sr DESC
-        LIMIT 15
+        LIMIT {limit}
     """)
 
 
 @st.cache_data(ttl=3600)
-def _avg_sr_scatter(s1, s2, team=None):
-    tf = f"AND batting_team = '{team}'" if team else ""
+def _avg_sr_scatter(season_range=DEFAULT_SEASON_RANGE, team=None, min_balls=500):
+    season_filter = _season_condition("season", season_range)
+    tf = _team_filter_clause(team)
+    min_balls = _sanitize_minimum(min_balls, 500, 1)
     return query(f"""
         SELECT batter,
                SUM(runs)::INT AS total_runs,
@@ -164,59 +226,67 @@ def _avg_sr_scatter(s1, s2, team=None):
                ROUND(SUM(runs)*1.0 / NULLIF(SUM(CASE WHEN was_out THEN 1 ELSE 0 END),0), 2) AS avg,
                ROUND(SUM(runs)*100.0 / NULLIF(SUM(balls),0), 1)                              AS sr
         FROM player_batting
-        WHERE season BETWEEN {s1} AND {s2} {tf}
+        WHERE {season_filter} {tf}
         GROUP BY batter
-        HAVING SUM(balls) >= 500
+        HAVING SUM(balls) >= {min_balls}
                AND SUM(CASE WHEN was_out THEN 1 ELSE 0 END) > 0
     """)
 
 
 @st.cache_data(ttl=3600)
-def _most_sixes(s1, s2, team=None):
-    tf = f"AND batting_team = '{team}'" if team else ""
+def _most_sixes(season_range=DEFAULT_SEASON_RANGE, team=None, limit=15):
+    season_filter = _season_condition("season", season_range)
+    tf = _team_filter_clause(team)
+    limit = _sanitize_limit(limit, 15)
     return query(f"""
         SELECT batter, SUM(sixes)::INT AS total_sixes
         FROM player_batting
-        WHERE season BETWEEN {s1} AND {s2} {tf}
+        WHERE {season_filter} {tf}
         GROUP BY batter
         ORDER BY total_sixes DESC
-        LIMIT 15
+        LIMIT {limit}
     """)
 
 
 @st.cache_data(ttl=3600)
-def _most_fours(s1, s2, team=None):
-    tf = f"AND batting_team = '{team}'" if team else ""
+def _most_fours(season_range=DEFAULT_SEASON_RANGE, team=None, limit=15):
+    season_filter = _season_condition("season", season_range)
+    tf = _team_filter_clause(team)
+    limit = _sanitize_limit(limit, 15)
     return query(f"""
         SELECT batter, SUM(fours)::INT AS total_fours
         FROM player_batting
-        WHERE season BETWEEN {s1} AND {s2} {tf}
+        WHERE {season_filter} {tf}
         GROUP BY batter
         ORDER BY total_fours DESC
-        LIMIT 15
+        LIMIT {limit}
     """)
 
 
 @st.cache_data(ttl=3600)
-def _most_ducks(s1, s2, team=None):
-    tf = f"AND batting_team = '{team}'" if team else ""
+def _most_ducks(season_range=DEFAULT_SEASON_RANGE, team=None, limit=10):
+    season_filter = _season_condition("season", season_range)
+    tf = _team_filter_clause(team)
+    limit = _sanitize_limit(limit, 10)
     return query(f"""
         SELECT batter,
                SUM(CASE WHEN is_duck THEN 1 ELSE 0 END)::INT AS ducks
         FROM player_batting
-        WHERE season BETWEEN {s1} AND {s2} {tf}
+        WHERE {season_filter} {tf}
         GROUP BY batter
         HAVING ducks > 0
         ORDER BY ducks DESC
-        LIMIT 10
+        LIMIT {limit}
     """)
 
 
 # ── Bowling ────────────────────────────────────────────────────────────
 
 @st.cache_data(ttl=3600)
-def _career_wickets(s1, s2, team=None):
-    tf = f"AND bowling_team = '{team}'" if team else ""
+def _career_wickets(season_range=DEFAULT_SEASON_RANGE, team=None, limit=15):
+    season_filter = _season_condition("season", season_range)
+    tf = _team_filter_clause_bowling(team)
+    limit = _sanitize_limit(limit, 15)
     return query(f"""
         SELECT bowler,
                COUNT(DISTINCT match_id)::INT                                     AS matches,
@@ -228,16 +298,18 @@ def _career_wickets(s1, s2, team=None):
                SUM(dots_bowled)::INT                                             AS dots,
                SUM(maidens)::INT                                                 AS maidens
         FROM player_bowling
-        WHERE season BETWEEN {s1} AND {s2} {tf}
+        WHERE {season_filter} {tf}
         GROUP BY bowler
         ORDER BY total_wickets DESC
-        LIMIT 15
+        LIMIT {limit}
     """)
 
 
 @st.cache_data(ttl=3600)
-def _best_bowling_figures(s1, s2, team=None):
+def _best_bowling_figures(season_range=DEFAULT_SEASON_RANGE, team=None, limit=15):
+    season_filter = _season_condition("pb.season", season_range)
     tf = f"AND pb.bowling_team = '{team}'" if team else ""
+    limit = _sanitize_limit(limit, 15)
     return query(f"""
         SELECT pb.bowler,
                CAST(pb.wickets AS INT) || '/' || CAST(pb.runs_conceded AS INT) AS figures,
@@ -248,15 +320,18 @@ def _best_bowling_figures(s1, s2, team=None):
                pb.season
         FROM player_bowling pb
         JOIN matches m ON pb.match_id = m.match_id
-        WHERE pb.season BETWEEN {s1} AND {s2} {tf}
+        WHERE {season_filter} {tf}
         ORDER BY pb.wickets DESC, pb.runs_conceded ASC
-        LIMIT 15
+        LIMIT {limit}
     """)
 
 
 @st.cache_data(ttl=3600)
-def _best_economy(s1, s2, team=None):
-    tf = f"AND bowling_team = '{team}'" if team else ""
+def _best_economy(season_range=DEFAULT_SEASON_RANGE, team=None, limit=15, min_balls=300):
+    season_filter = _season_condition("season", season_range)
+    tf = _team_filter_clause_bowling(team)
+    limit = _sanitize_limit(limit, 15)
+    min_balls = _sanitize_minimum(min_balls, 300, 1)
     return query(f"""
         SELECT bowler,
                SUM(balls_bowled)::INT                                            AS total_balls,
@@ -264,17 +339,20 @@ def _best_economy(s1, s2, team=None):
                SUM(wickets)::INT                                                 AS total_wickets,
                ROUND(SUM(runs_conceded)*6.0 / NULLIF(SUM(balls_bowled),0), 2)   AS economy
         FROM player_bowling
-        WHERE season BETWEEN {s1} AND {s2} {tf}
+        WHERE {season_filter} {tf}
         GROUP BY bowler
-        HAVING SUM(balls_bowled) >= 300
+        HAVING SUM(balls_bowled) >= {min_balls}
         ORDER BY economy ASC
-        LIMIT 15
+        LIMIT {limit}
     """)
 
 
 @st.cache_data(ttl=3600)
-def _best_bowling_avg(s1, s2, team=None):
-    tf = f"AND bowling_team = '{team}'" if team else ""
+def _best_bowling_avg(season_range=DEFAULT_SEASON_RANGE, team=None, limit=15, min_wickets=30):
+    season_filter = _season_condition("season", season_range)
+    tf = _team_filter_clause_bowling(team)
+    limit = _sanitize_limit(limit, 15)
+    min_wickets = _sanitize_minimum(min_wickets, 30, 1)
     return query(f"""
         SELECT bowler,
                SUM(wickets)::INT                                                 AS total_wickets,
@@ -282,17 +360,20 @@ def _best_bowling_avg(s1, s2, team=None):
                COUNT(DISTINCT match_id)::INT                                     AS matches,
                ROUND(SUM(runs_conceded)*1.0 / NULLIF(SUM(wickets),0), 2)        AS avg
         FROM player_bowling
-        WHERE season BETWEEN {s1} AND {s2} {tf}
+        WHERE {season_filter} {tf}
         GROUP BY bowler
-        HAVING SUM(wickets) >= 30
+        HAVING SUM(wickets) >= {min_wickets}
         ORDER BY avg ASC
-        LIMIT 15
+        LIMIT {limit}
     """)
 
 
 @st.cache_data(ttl=3600)
-def _best_bowling_sr(s1, s2, team=None):
-    tf = f"AND bowling_team = '{team}'" if team else ""
+def _best_bowling_sr(season_range=DEFAULT_SEASON_RANGE, team=None, limit=15, min_wickets=30):
+    season_filter = _season_condition("season", season_range)
+    tf = _team_filter_clause_bowling(team)
+    limit = _sanitize_limit(limit, 15)
+    min_wickets = _sanitize_minimum(min_wickets, 30, 1)
     return query(f"""
         SELECT bowler,
                SUM(wickets)::INT                                                 AS total_wickets,
@@ -300,45 +381,50 @@ def _best_bowling_sr(s1, s2, team=None):
                COUNT(DISTINCT match_id)::INT                                     AS matches,
                ROUND(SUM(balls_bowled)*1.0 / NULLIF(SUM(wickets),0), 1)         AS bowling_sr
         FROM player_bowling
-        WHERE season BETWEEN {s1} AND {s2} {tf}
+        WHERE {season_filter} {tf}
         GROUP BY bowler
-        HAVING SUM(wickets) >= 30
+        HAVING SUM(wickets) >= {min_wickets}
         ORDER BY bowling_sr ASC
-        LIMIT 15
+        LIMIT {limit}
     """)
 
 
 @st.cache_data(ttl=3600)
-def _most_maidens(s1, s2, team=None):
-    tf = f"AND bowling_team = '{team}'" if team else ""
+def _most_maidens(season_range=DEFAULT_SEASON_RANGE, team=None, limit=10):
+    season_filter = _season_condition("season", season_range)
+    tf = _team_filter_clause_bowling(team)
+    limit = _sanitize_limit(limit, 10)
     return query(f"""
         SELECT bowler, SUM(maidens)::INT AS total_maidens
         FROM player_bowling
-        WHERE season BETWEEN {s1} AND {s2} {tf}
+        WHERE {season_filter} {tf}
         GROUP BY bowler
         HAVING total_maidens > 0
         ORDER BY total_maidens DESC
-        LIMIT 10
+        LIMIT {limit}
     """)
 
 
 @st.cache_data(ttl=3600)
-def _most_dot_balls(s1, s2, team=None):
-    tf = f"AND bowling_team = '{team}'" if team else ""
+def _most_dot_balls(season_range=DEFAULT_SEASON_RANGE, team=None, limit=15):
+    season_filter = _season_condition("season", season_range)
+    tf = _team_filter_clause_bowling(team)
+    limit = _sanitize_limit(limit, 15)
     return query(f"""
         SELECT bowler, SUM(dots_bowled)::INT AS total_dots
         FROM player_bowling
-        WHERE season BETWEEN {s1} AND {s2} {tf}
+        WHERE {season_filter} {tf}
         GROUP BY bowler
         ORDER BY total_dots DESC
-        LIMIT 15
+        LIMIT {limit}
     """)
 
 
 # ── Teams ──────────────────────────────────────────────────────────────
 
 @st.cache_data(ttl=3600)
-def _team_win_pct(s1, s2, team=None):
+def _team_win_pct(season_range=DEFAULT_SEASON_RANGE, team=None):
+    season_filter = _season_condition("season", season_range)
     tf = f"AND team = '{team}'" if team else ""
     return query(f"""
         SELECT team,
@@ -347,18 +433,19 @@ def _team_win_pct(s1, s2, team=None):
                SUM(losses)::INT         AS losses,
                ROUND(SUM(wins)*100.0 / NULLIF(SUM(matches_played),0), 1) AS win_pct
         FROM team_season
-        WHERE season BETWEEN {s1} AND {s2} {tf}
+        WHERE {season_filter} {tf}
         GROUP BY team
         ORDER BY win_pct DESC
     """)
 
 
 @st.cache_data(ttl=3600)
-def _ipl_titles(s1, s2):
+def _ipl_titles(season_range=DEFAULT_SEASON_RANGE):
+    season_filter = _season_condition("season", season_range)
     return query(f"""
         SELECT champion AS team, COUNT(*)::INT AS titles
         FROM season_meta
-        WHERE season BETWEEN {s1} AND {s2}
+        WHERE {season_filter}
           AND champion IS NOT NULL
         GROUP BY champion
         ORDER BY titles DESC
@@ -366,9 +453,11 @@ def _ipl_titles(s1, s2):
 
 
 @st.cache_data(ttl=3600)
-def _highest_totals(s1, s2, team=None):
+def _highest_totals(season_range=DEFAULT_SEASON_RANGE, team=None, limit=15):
+    season_filter = _season_condition("season", season_range)
     tf1 = f"AND team1 = '{team}'" if team else ""
     tf2 = f"AND team2 = '{team}'" if team else ""
+    limit = _sanitize_limit(limit, 15)
     return query(f"""
         SELECT * FROM (
             SELECT team1 AS team,
@@ -376,7 +465,7 @@ def _highest_totals(s1, s2, team=None):
                    COALESCE(team1_wickets, 0)::INT           AS wickets,
                    team2 AS opponent, venue, season
             FROM matches
-            WHERE season BETWEEN {s1} AND {s2} {tf1}
+            WHERE {season_filter} {tf1}
               AND team1_score IS NOT NULL
             UNION ALL
             SELECT team2 AS team,
@@ -384,18 +473,20 @@ def _highest_totals(s1, s2, team=None):
                    COALESCE(team2_wickets, 0)::INT           AS wickets,
                    team1 AS opponent, venue, season
             FROM matches
-            WHERE season BETWEEN {s1} AND {s2} {tf2}
+            WHERE {season_filter} {tf2}
               AND team2_score IS NOT NULL
         ) t
         ORDER BY score DESC
-        LIMIT 15
+        LIMIT {limit}
     """)
 
 
 @st.cache_data(ttl=3600)
-def _lowest_totals(s1, s2, team=None):
+def _lowest_totals(season_range=DEFAULT_SEASON_RANGE, team=None, limit=15):
+    season_filter = _season_condition("season", season_range)
     tf1 = f"AND team1 = '{team}'" if team else ""
     tf2 = f"AND team2 = '{team}'" if team else ""
+    limit = _sanitize_limit(limit, 15)
     return query(f"""
         SELECT * FROM (
             SELECT team1 AS team,
@@ -403,7 +494,7 @@ def _lowest_totals(s1, s2, team=None):
                    COALESCE(team1_wickets, 0)::INT           AS wickets,
                    team2 AS opponent, venue, season
             FROM matches
-            WHERE season BETWEEN {s1} AND {s2} {tf1}
+            WHERE {season_filter} {tf1}
               AND team1_score IS NOT NULL AND team1_score > 0
             UNION ALL
             SELECT team2 AS team,
@@ -411,17 +502,19 @@ def _lowest_totals(s1, s2, team=None):
                    COALESCE(team2_wickets, 0)::INT           AS wickets,
                    team1 AS opponent, venue, season
             FROM matches
-            WHERE season BETWEEN {s1} AND {s2} {tf2}
+            WHERE {season_filter} {tf2}
               AND team2_score IS NOT NULL AND team2_score > 0
         ) t
         ORDER BY score ASC
-        LIMIT 15
+        LIMIT {limit}
     """)
 
 
 @st.cache_data(ttl=3600)
-def _highest_chases(s1, s2, team=None):
+def _highest_chases(season_range=DEFAULT_SEASON_RANGE, team=None, limit=10):
+    season_filter = _season_condition("m.season", season_range)
     tf = f"AND c.chasing_team = '{team}'" if team else ""
+    limit = _sanitize_limit(limit, 10)
     return query(f"""
         WITH chasing AS (
             SELECT DISTINCT match_id, batting_team AS chasing_team
@@ -441,35 +534,38 @@ def _highest_chases(s1, s2, team=None):
             m.season
         FROM matches m
         JOIN chasing c ON m.match_id = c.match_id
-        WHERE m.season BETWEEN {s1} AND {s2} {tf}
+        WHERE {season_filter} {tf}
           AND m.match_won_by = c.chasing_team
         ORDER BY score DESC
-        LIMIT 10
+        LIMIT {limit}
     """)
 
 
 # ── All-Rounders ───────────────────────────────────────────────────────
 
 @st.cache_data(ttl=3600)
-def _allrounder_scatter(s1, s2):
+def _allrounder_scatter(season_range=DEFAULT_SEASON_RANGE, min_runs=500, min_wickets=30):
+    season_filter = _season_condition("season", season_range)
+    min_runs = _sanitize_minimum(min_runs, 500, 1)
+    min_wickets = _sanitize_minimum(min_wickets, 30, 1)
     return query(f"""
         WITH bat AS (
             SELECT batter AS player,
                    SUM(runs)::INT              AS total_runs,
                    COUNT(DISTINCT match_id)::INT AS bat_matches
             FROM player_batting
-            WHERE season BETWEEN {s1} AND {s2}
+            WHERE {season_filter}
             GROUP BY batter
-            HAVING SUM(runs) >= 500
+            HAVING SUM(runs) >= {min_runs}
         ),
         bowl AS (
             SELECT bowler AS player,
                    SUM(wickets)::INT             AS total_wickets,
                    COUNT(DISTINCT match_id)::INT AS bowl_matches
             FROM player_bowling
-            WHERE season BETWEEN {s1} AND {s2}
+            WHERE {season_filter}
             GROUP BY bowler
-            HAVING SUM(wickets) >= 30
+            HAVING SUM(wickets) >= {min_wickets}
         )
         SELECT bat.player,
                bat.total_runs    AS runs,
@@ -482,24 +578,28 @@ def _allrounder_scatter(s1, s2):
 
 
 @st.cache_data(ttl=3600)
-def _most_potm(s1, s2, team=None):
+def _most_potm(season_range=DEFAULT_SEASON_RANGE, team=None, limit=15):
+    season_filter = _season_condition("season", season_range)
     tf = f"AND (team1 = '{team}' OR team2 = '{team}')" if team else ""
+    limit = _sanitize_limit(limit, 15)
     return query(f"""
         SELECT player_of_match AS player, COUNT(*)::INT AS awards
         FROM matches
-        WHERE season BETWEEN {s1} AND {s2}
+        WHERE {season_filter}
           AND player_of_match IS NOT NULL {tf}
         GROUP BY player_of_match
         ORDER BY awards DESC
-        LIMIT 15
+        LIMIT {limit}
     """)
 
 
 # ── Miscellaneous ──────────────────────────────────────────────────────
 
 @st.cache_data(ttl=3600)
-def _expensive_overs(s1, s2, team=None):
+def _expensive_overs(season_range=DEFAULT_SEASON_RANGE, team=None, limit=20):
+    season_filter = _season_condition("b.season", season_range)
     tf = f"AND b.bowling_team = '{team}'" if team else ""
+    limit = _sanitize_limit(limit, 20)
     return query(f"""
         SELECT b.bowler,
                b.batting_team                              AS vs_team,
@@ -512,17 +612,21 @@ def _expensive_overs(s1, s2, team=None):
                m.venue
         FROM balls b
         JOIN matches m ON b.match_id = m.match_id
-        WHERE b.season BETWEEN {s1} AND {s2} {tf}
+        WHERE {season_filter} {tf}
         GROUP BY b.match_id, b.innings, b.over, b.bowler,
                  b.batting_team, b.bowling_team, b.season, m.venue
         ORDER BY runs_conceded DESC
-        LIMIT 20
+        LIMIT {limit}
     """)
 
 
 # ═══════════════════════════════════════════════════════════════════════
 #  TAB CONTENT
 # ═══════════════════════════════════════════════════════════════════════
+
+# Get team list for team filter control
+teams_df = query("SELECT DISTINCT team FROM team_season ORDER BY team")
+team_options = ["All Teams"] + teams_df["team"].tolist()
 
 tab_bat, tab_bowl, tab_team, tab_ar, tab_misc = st.tabs(
     ["Batting", "Bowling", "Teams", "All-Rounders", "Miscellaneous"]
@@ -532,12 +636,27 @@ tab_bat, tab_bowl, tab_team, tab_ar, tab_misc = st.tabs(
 with tab_bat:
 
     # --- Most Career Runs ---
-    st.subheader("Most Career Runs")
-    df = _career_runs(s1, s2, team_filter)
+    spec = _visual_spec(
+        "career_runs",
+        "Most Career Runs",
+        default_limit=15,
+        extra_controls=[
+            select_control("team", "Team (optional)", team_options, "All Teams"),
+        ],
+    )
+    st.subheader(spec.title)
+    controls = render_visual_controls(spec)
+    render_active_filters(active_control_chips(spec, controls))
+    team_val = None if controls.get("team") == "All Teams" else controls.get("team")
+    df = _career_runs(
+        season_range=controls.get("season_range"),
+        team=team_val,
+        limit=controls.get("limit"),
+    )
     if not df.empty:
         fig = styled_bar(
             df.sort_values("total_runs"), x="batter", y="total_runs",
-            title="Top 15 Run Scorers", horizontal=True, height=500,
+            title="Top Run Scorers", horizontal=True, height=500,
         )
         st.plotly_chart(fig, width='stretch')
 
@@ -548,35 +667,80 @@ with tab_bat:
         })[["Player", "Runs", "Inn", "Avg", "SR", "100s", "50s", "4s", "6s"]]
         st.dataframe(display, width='stretch', hide_index=True)
     else:
-        st.info("No data for the selected filters.")
+        st.info(spec.empty_state_help)
 
     st.divider()
 
     # --- Centuries & Fifties ---
     c1, c2 = st.columns(2)
     with c1:
-        st.subheader("Most Centuries")
-        df_c = _most_centuries(s1, s2, team_filter)
+        spec = _visual_spec(
+            "most_centuries",
+            "Most Centuries",
+            default_limit=10,
+            extra_controls=[
+                select_control("team", "Team (optional)", team_options, "All Teams"),
+            ],
+        )
+        st.subheader(spec.title)
+        controls = render_visual_controls(spec)
+        render_active_filters(active_control_chips(spec, controls))
+        team_val = None if controls.get("team") == "All Teams" else controls.get("team")
+        df_c = _most_centuries(
+            season_range=controls.get("season_range"),
+            team=team_val,
+            limit=controls.get("limit"),
+        )
         if not df_c.empty:
-            fig = styled_bar(df_c, x="batter", y="hundreds", title="Most 100s (Top 10)")
+            fig = styled_bar(df_c, x="batter", y="hundreds", title="Most 100s")
             st.plotly_chart(fig, width='stretch')
         else:
-            st.info("No centuries in selected range.")
+            st.info(spec.empty_state_help)
 
     with c2:
-        st.subheader("Most Fifties")
-        df_f = _most_fifties(s1, s2, team_filter)
+        spec = _visual_spec(
+            "most_fifties",
+            "Most Fifties",
+            default_limit=10,
+            extra_controls=[
+                select_control("team", "Team (optional)", team_options, "All Teams"),
+            ],
+        )
+        st.subheader(spec.title)
+        controls = render_visual_controls(spec)
+        render_active_filters(active_control_chips(spec, controls))
+        team_val = None if controls.get("team") == "All Teams" else controls.get("team")
+        df_f = _most_fifties(
+            season_range=controls.get("season_range"),
+            team=team_val,
+            limit=controls.get("limit"),
+        )
         if not df_f.empty:
-            fig = styled_bar(df_f, x="batter", y="fifties", title="Most 50s (Top 10)")
+            fig = styled_bar(df_f, x="batter", y="fifties", title="Most 50s")
             st.plotly_chart(fig, width='stretch')
         else:
-            st.info("No fifties in selected range.")
+            st.info(spec.empty_state_help)
 
     st.divider()
 
     # --- Highest Individual Scores ---
-    st.subheader("Highest Individual Scores")
-    df_hs = _highest_scores(s1, s2, team_filter)
+    spec = _visual_spec(
+        "highest_scores",
+        "Highest Individual Scores",
+        default_limit=20,
+        extra_controls=[
+            select_control("team", "Team (optional)", team_options, "All Teams"),
+        ],
+    )
+    st.subheader(spec.title)
+    controls = render_visual_controls(spec)
+    render_active_filters(active_control_chips(spec, controls))
+    team_val = None if controls.get("team") == "All Teams" else controls.get("team")
+    df_hs = _highest_scores(
+        season_range=controls.get("season_range"),
+        team=team_val,
+        limit=controls.get("limit"),
+    )
     if not df_hs.empty:
         st.dataframe(
             df_hs.rename(columns={
@@ -586,14 +750,33 @@ with tab_bat:
             }),
             width='stretch', hide_index=True,
         )
+    else:
+        st.info(spec.empty_state_help)
 
     st.divider()
 
     # --- Best Average & SR ---
     c1, c2 = st.columns(2)
     with c1:
-        st.subheader("Best Batting Average (min 30 inn)")
-        df_ba = _best_batting_avg(s1, s2, team_filter)
+        spec = _visual_spec(
+            "best_batting_avg",
+            "Best Batting Average",
+            default_limit=15,
+            extra_controls=[
+                select_control("team", "Team (optional)", team_options, "All Teams"),
+                number_control("min_innings", "Min innings", 30, 1, 100, help_text="Minimum innings to qualify"),
+            ],
+        )
+        st.subheader(spec.title)
+        controls = render_visual_controls(spec)
+        render_active_filters(active_control_chips(spec, controls))
+        team_val = None if controls.get("team") == "All Teams" else controls.get("team")
+        df_ba = _best_batting_avg(
+            season_range=controls.get("season_range"),
+            team=team_val,
+            limit=controls.get("limit"),
+            min_innings=controls.get("min_innings"),
+        )
         if not df_ba.empty:
             st.dataframe(
                 df_ba.rename(columns={
@@ -603,11 +786,28 @@ with tab_bat:
                 width='stretch', hide_index=True,
             )
         else:
-            st.info("No qualifying batters.")
+            st.info(spec.empty_state_help)
 
     with c2:
-        st.subheader("Best Strike Rate (min 500 balls)")
-        df_bsr = _best_batting_sr(s1, s2, team_filter)
+        spec = _visual_spec(
+            "best_batting_sr",
+            "Best Strike Rate",
+            default_limit=15,
+            extra_controls=[
+                select_control("team", "Team (optional)", team_options, "All Teams"),
+                number_control("min_balls", "Min balls", 500, 100, 2000, step=50, help_text="Minimum balls to qualify"),
+            ],
+        )
+        st.subheader(spec.title)
+        controls = render_visual_controls(spec)
+        render_active_filters(active_control_chips(spec, controls))
+        team_val = None if controls.get("team") == "All Teams" else controls.get("team")
+        df_bsr = _best_batting_sr(
+            season_range=controls.get("season_range"),
+            team=team_val,
+            limit=controls.get("limit"),
+            min_balls=controls.get("min_balls"),
+        )
         if not df_bsr.empty:
             st.dataframe(
                 df_bsr.rename(columns={
@@ -617,65 +817,148 @@ with tab_bat:
                 width='stretch', hide_index=True,
             )
         else:
-            st.info("No qualifying batters.")
+            st.info(spec.empty_state_help)
 
     st.divider()
 
     # --- Average × SR Scatter ---
-    st.subheader("Average × Strike Rate")
-    df_as = _avg_sr_scatter(s1, s2, team_filter)
+    spec = _visual_spec(
+        "avg_sr_scatter",
+        "Average × Strike Rate",
+        extra_controls=[
+            select_control("team", "Team (optional)", team_options, "All Teams"),
+            number_control("min_balls", "Min balls", 500, 100, 2000, step=50, help_text="Minimum balls to qualify"),
+        ],
+    )
+    st.subheader(spec.title)
+    controls = render_visual_controls(spec)
+    render_active_filters(active_control_chips(spec, controls))
+    team_val = None if controls.get("team") == "All Teams" else controls.get("team")
+    df_as = _avg_sr_scatter(
+        season_range=controls.get("season_range"),
+        team=team_val,
+        min_balls=controls.get("min_balls"),
+    )
     if not df_as.empty:
         fig = styled_scatter(
             df_as, x="avg", y="sr",
-            title="Batting Quality Index (min 500 balls)",
+            title="Batting Quality Index",
             size="total_runs", hover_name="batter", height=550,
         )
         st.plotly_chart(fig, width='stretch')
+    else:
+        st.info(spec.empty_state_help)
 
     st.divider()
 
     # --- Sixes & Fours ---
     c1, c2 = st.columns(2)
     with c1:
-        st.subheader("Most Career Sixes")
-        df_6 = _most_sixes(s1, s2, team_filter)
+        spec = _visual_spec(
+            "most_sixes",
+            "Most Career Sixes",
+            default_limit=15,
+            extra_controls=[
+                select_control("team", "Team (optional)", team_options, "All Teams"),
+            ],
+        )
+        st.subheader(spec.title)
+        controls = render_visual_controls(spec)
+        render_active_filters(active_control_chips(spec, controls))
+        team_val = None if controls.get("team") == "All Teams" else controls.get("team")
+        df_6 = _most_sixes(
+            season_range=controls.get("season_range"),
+            team=team_val,
+            limit=controls.get("limit"),
+        )
         if not df_6.empty:
             fig = styled_bar(
                 df_6.sort_values("total_sixes"), x="batter", y="total_sixes",
-                title="Top 15 Six Hitters", horizontal=True,
+                title="Top Six Hitters", horizontal=True,
             )
             st.plotly_chart(fig, width='stretch')
+        else:
+            st.info(spec.empty_state_help)
 
     with c2:
-        st.subheader("Most Career Fours")
-        df_4 = _most_fours(s1, s2, team_filter)
+        spec = _visual_spec(
+            "most_fours",
+            "Most Career Fours",
+            default_limit=15,
+            extra_controls=[
+                select_control("team", "Team (optional)", team_options, "All Teams"),
+            ],
+        )
+        st.subheader(spec.title)
+        controls = render_visual_controls(spec)
+        render_active_filters(active_control_chips(spec, controls))
+        team_val = None if controls.get("team") == "All Teams" else controls.get("team")
+        df_4 = _most_fours(
+            season_range=controls.get("season_range"),
+            team=team_val,
+            limit=controls.get("limit"),
+        )
         if not df_4.empty:
             fig = styled_bar(
                 df_4.sort_values("total_fours"), x="batter", y="total_fours",
-                title="Top 15 Four Hitters", horizontal=True,
+                title="Top Four Hitters", horizontal=True,
             )
             st.plotly_chart(fig, width='stretch')
+        else:
+            st.info(spec.empty_state_help)
 
     st.divider()
 
     # --- Most Ducks ---
-    st.subheader("Most Ducks")
-    df_d = _most_ducks(s1, s2, team_filter)
+    spec = _visual_spec(
+        "most_ducks",
+        "Most Ducks",
+        default_limit=10,
+        extra_controls=[
+            select_control("team", "Team (optional)", team_options, "All Teams"),
+        ],
+    )
+    st.subheader(spec.title)
+    controls = render_visual_controls(spec)
+    render_active_filters(active_control_chips(spec, controls))
+    team_val = None if controls.get("team") == "All Teams" else controls.get("team")
+    df_d = _most_ducks(
+        season_range=controls.get("season_range"),
+        team=team_val,
+        limit=controls.get("limit"),
+    )
     if not df_d.empty:
-        fig = styled_bar(df_d, x="batter", y="ducks", title="Most Ducks (Top 10)")
+        fig = styled_bar(df_d, x="batter", y="ducks", title="Most Ducks")
         st.plotly_chart(fig, width='stretch')
+    else:
+        st.info(spec.empty_state_help)
 
 
 # ── BOWLING TAB ────────────────────────────────────────────────────────
 with tab_bowl:
 
     # --- Most Career Wickets ---
-    st.subheader("Most Career Wickets")
-    df_w = _career_wickets(s1, s2, team_filter)
+    spec = _visual_spec(
+        "career_wickets",
+        "Most Career Wickets",
+        default_limit=15,
+        extra_controls=[
+            select_control("team", "Team (optional)", team_options, "All Teams"),
+        ],
+    )
+    st.subheader(spec.title)
+    controls = render_visual_controls(spec)
+    render_active_filters(active_control_chips(spec, controls))
+    team_val = None if controls.get("team") == "All Teams" else controls.get("team")
+    df_w = _career_wickets(
+        season_range=controls.get("season_range"),
+        team=team_val,
+        limit=controls.get("limit"),
+    )
     if not df_w.empty:
         fig = styled_bar(
             df_w.sort_values("total_wickets"), x="bowler", y="total_wickets",
-            title="Top 15 Wicket Takers", horizontal=True, height=500,
+            title="Top Wicket Takers", horizontal=True, height=500,
         )
         st.plotly_chart(fig, width='stretch')
 
@@ -688,13 +971,28 @@ with tab_bowl:
         })[["Bowler", "Wkts", "Mat", "Overs", "Econ", "SR", "Avg", "Dots", "Mdns"]]
         st.dataframe(disp, width='stretch', hide_index=True)
     else:
-        st.info("No data for the selected filters.")
+        st.info(spec.empty_state_help)
 
     st.divider()
 
     # --- Best Bowling Figures ---
-    st.subheader("Best Bowling Figures")
-    df_bf = _best_bowling_figures(s1, s2, team_filter)
+    spec = _visual_spec(
+        "best_bowling_figures",
+        "Best Bowling Figures",
+        default_limit=15,
+        extra_controls=[
+            select_control("team", "Team (optional)", team_options, "All Teams"),
+        ],
+    )
+    st.subheader(spec.title)
+    controls = render_visual_controls(spec)
+    render_active_filters(active_control_chips(spec, controls))
+    team_val = None if controls.get("team") == "All Teams" else controls.get("team")
+    df_bf = _best_bowling_figures(
+        season_range=controls.get("season_range"),
+        team=team_val,
+        limit=controls.get("limit"),
+    )
     if not df_bf.empty:
         st.dataframe(
             df_bf.rename(columns={
@@ -703,14 +1001,33 @@ with tab_bowl:
             })[["Bowler", "Figures", "Vs", "Venue", "Season"]],
             width='stretch', hide_index=True,
         )
+    else:
+        st.info(spec.empty_state_help)
 
     st.divider()
 
     # --- Economy & Average ---
     c1, c2 = st.columns(2)
     with c1:
-        st.subheader("Best Economy (min 300 balls)")
-        df_be = _best_economy(s1, s2, team_filter)
+        spec = _visual_spec(
+            "best_economy",
+            "Best Economy",
+            default_limit=15,
+            extra_controls=[
+                select_control("team", "Team (optional)", team_options, "All Teams"),
+                number_control("min_balls", "Min balls", 300, 100, 1000, step=50, help_text="Minimum balls to qualify"),
+            ],
+        )
+        st.subheader(spec.title)
+        controls = render_visual_controls(spec)
+        render_active_filters(active_control_chips(spec, controls))
+        team_val = None if controls.get("team") == "All Teams" else controls.get("team")
+        df_be = _best_economy(
+            season_range=controls.get("season_range"),
+            team=team_val,
+            limit=controls.get("limit"),
+            min_balls=controls.get("min_balls"),
+        )
         if not df_be.empty:
             disp = df_be.copy()
             disp["overs"] = disp["total_balls"].apply(format_overs)
@@ -721,10 +1038,29 @@ with tab_bowl:
                 })[["Bowler", "Overs", "Runs", "Wkts", "Econ"]],
                 width='stretch', hide_index=True,
             )
+        else:
+            st.info(spec.empty_state_help)
 
     with c2:
-        st.subheader("Best Bowling Average (min 30 wkts)")
-        df_bba = _best_bowling_avg(s1, s2, team_filter)
+        spec = _visual_spec(
+            "best_bowling_avg",
+            "Best Bowling Average",
+            default_limit=15,
+            extra_controls=[
+                select_control("team", "Team (optional)", team_options, "All Teams"),
+                number_control("min_wickets", "Min wickets", 30, 1, 100, help_text="Minimum wickets to qualify"),
+            ],
+        )
+        st.subheader(spec.title)
+        controls = render_visual_controls(spec)
+        render_active_filters(active_control_chips(spec, controls))
+        team_val = None if controls.get("team") == "All Teams" else controls.get("team")
+        df_bba = _best_bowling_avg(
+            season_range=controls.get("season_range"),
+            team=team_val,
+            limit=controls.get("limit"),
+            min_wickets=controls.get("min_wickets"),
+        )
         if not df_bba.empty:
             st.dataframe(
                 df_bba.rename(columns={
@@ -733,12 +1069,31 @@ with tab_bowl:
                 })[["Bowler", "Mat", "Wkts", "Runs", "Avg"]],
                 width='stretch', hide_index=True,
             )
+        else:
+            st.info(spec.empty_state_help)
 
     st.divider()
 
     # --- Bowling Strike Rate ---
-    st.subheader("Best Bowling Strike Rate (min 30 wkts)")
-    df_bbs = _best_bowling_sr(s1, s2, team_filter)
+    spec = _visual_spec(
+        "best_bowling_sr",
+        "Best Bowling Strike Rate",
+        default_limit=15,
+        extra_controls=[
+            select_control("team", "Team (optional)", team_options, "All Teams"),
+            number_control("min_wickets", "Min wickets", 30, 1, 100, help_text="Minimum wickets to qualify"),
+        ],
+    )
+    st.subheader(spec.title)
+    controls = render_visual_controls(spec)
+    render_active_filters(active_control_chips(spec, controls))
+    team_val = None if controls.get("team") == "All Teams" else controls.get("team")
+    df_bbs = _best_bowling_sr(
+        season_range=controls.get("season_range"),
+        team=team_val,
+        limit=controls.get("limit"),
+        min_wickets=controls.get("min_wickets"),
+    )
     if not df_bbs.empty:
         disp = df_bbs.copy()
         disp["overs"] = disp["total_balls"].apply(format_overs)
@@ -749,34 +1104,84 @@ with tab_bowl:
             })[["Bowler", "Mat", "Wkts", "Overs", "SR"]],
             width='stretch', hide_index=True,
         )
+    else:
+        st.info(spec.empty_state_help)
 
     st.divider()
 
     # --- Maidens & Dots ---
     c1, c2 = st.columns(2)
     with c1:
-        st.subheader("Most Maiden Overs")
-        df_m = _most_maidens(s1, s2, team_filter)
+        spec = _visual_spec(
+            "most_maidens",
+            "Most Maiden Overs",
+            default_limit=10,
+            extra_controls=[
+                select_control("team", "Team (optional)", team_options, "All Teams"),
+            ],
+        )
+        st.subheader(spec.title)
+        controls = render_visual_controls(spec)
+        render_active_filters(active_control_chips(spec, controls))
+        team_val = None if controls.get("team") == "All Teams" else controls.get("team")
+        df_m = _most_maidens(
+            season_range=controls.get("season_range"),
+            team=team_val,
+            limit=controls.get("limit"),
+        )
         if not df_m.empty:
             fig = styled_bar(df_m, x="bowler", y="total_maidens",
-                             title="Top 10 Maiden Bowlers")
+                             title="Top Maiden Bowlers")
             st.plotly_chart(fig, width='stretch')
+        else:
+            st.info(spec.empty_state_help)
 
     with c2:
-        st.subheader("Most Dot Balls Bowled")
-        df_dt = _most_dot_balls(s1, s2, team_filter)
+        spec = _visual_spec(
+            "most_dot_balls",
+            "Most Dot Balls Bowled",
+            default_limit=15,
+            extra_controls=[
+                select_control("team", "Team (optional)", team_options, "All Teams"),
+            ],
+        )
+        st.subheader(spec.title)
+        controls = render_visual_controls(spec)
+        render_active_filters(active_control_chips(spec, controls))
+        team_val = None if controls.get("team") == "All Teams" else controls.get("team")
+        df_dt = _most_dot_balls(
+            season_range=controls.get("season_range"),
+            team=team_val,
+            limit=controls.get("limit"),
+        )
         if not df_dt.empty:
             fig = styled_bar(df_dt, x="bowler", y="total_dots",
-                             title="Top 15 Dot Ball Bowlers")
+                             title="Top Dot Ball Bowlers")
             st.plotly_chart(fig, width='stretch')
+        else:
+            st.info(spec.empty_state_help)
+
 
 
 # ── TEAM TAB ───────────────────────────────────────────────────────────
 with tab_team:
 
     # --- Win Percentage ---
-    st.subheader("Win Percentage — All Teams")
-    df_wp = _team_win_pct(s1, s2, team_filter)
+    spec = _visual_spec(
+        "team_win_pct",
+        "Win Percentage — All Teams",
+        extra_controls=[
+            select_control("team", "Team (optional)", team_options, "All Teams"),
+        ],
+    )
+    st.subheader(spec.title)
+    controls = render_visual_controls(spec)
+    render_active_filters(active_control_chips(spec, controls))
+    team_val = None if controls.get("team") == "All Teams" else controls.get("team")
+    df_wp = _team_win_pct(
+        season_range=controls.get("season_range"),
+        team=team_val,
+    )
     if not df_wp.empty:
         color_map = {t: get_team_color(t) for t in df_wp["team"]}
         fig = styled_bar(
@@ -785,12 +1190,20 @@ with tab_team:
             horizontal=True, height=550,
         )
         st.plotly_chart(fig, width='stretch')
+    else:
+        st.info(spec.empty_state_help)
 
     st.divider()
 
     # --- IPL Titles ---
-    st.subheader("Most IPL Titles")
-    df_t = _ipl_titles(s1, s2)
+    spec = _visual_spec(
+        "ipl_titles",
+        "Most IPL Titles",
+    )
+    st.subheader(spec.title)
+    controls = render_visual_controls(spec)
+    render_active_filters(active_control_chips(spec, controls))
+    df_t = _ipl_titles(season_range=controls.get("season_range"))
     if not df_t.empty:
         color_map = {t: get_team_color(t) for t in df_t["team"]}
         fig = styled_bar(
@@ -799,15 +1212,30 @@ with tab_team:
         )
         st.plotly_chart(fig, width='stretch')
     else:
-        st.info("No title data in selected range.")
+        st.info(spec.empty_state_help)
 
     st.divider()
 
     # --- Highest & Lowest Totals ---
     c1, c2 = st.columns(2)
     with c1:
-        st.subheader("Highest Team Totals")
-        df_ht = _highest_totals(s1, s2, team_filter)
+        spec = _visual_spec(
+            "highest_totals",
+            "Highest Team Totals",
+            default_limit=15,
+            extra_controls=[
+                select_control("team", "Team (optional)", team_options, "All Teams"),
+            ],
+        )
+        st.subheader(spec.title)
+        controls = render_visual_controls(spec)
+        render_active_filters(active_control_chips(spec, controls))
+        team_val = None if controls.get("team") == "All Teams" else controls.get("team")
+        df_ht = _highest_totals(
+            season_range=controls.get("season_range"),
+            team=team_val,
+            limit=controls.get("limit"),
+        )
         if not df_ht.empty:
             disp = df_ht.copy()
             disp["score_wkt"] = disp["score"].astype(str) + "/" + disp["wickets"].astype(str)
@@ -818,10 +1246,27 @@ with tab_team:
                 })[["Team", "Score", "Vs", "Venue", "Season"]],
                 width='stretch', hide_index=True,
             )
+        else:
+            st.info(spec.empty_state_help)
 
     with c2:
-        st.subheader("Lowest Team Totals")
-        df_lt = _lowest_totals(s1, s2, team_filter)
+        spec = _visual_spec(
+            "lowest_totals",
+            "Lowest Team Totals",
+            default_limit=15,
+            extra_controls=[
+                select_control("team", "Team (optional)", team_options, "All Teams"),
+            ],
+        )
+        st.subheader(spec.title)
+        controls = render_visual_controls(spec)
+        render_active_filters(active_control_chips(spec, controls))
+        team_val = None if controls.get("team") == "All Teams" else controls.get("team")
+        df_lt = _lowest_totals(
+            season_range=controls.get("season_range"),
+            team=team_val,
+            limit=controls.get("limit"),
+        )
         if not df_lt.empty:
             disp = df_lt.copy()
             disp["score_wkt"] = disp["score"].astype(str) + "/" + disp["wickets"].astype(str)
@@ -832,12 +1277,29 @@ with tab_team:
                 })[["Team", "Score", "Vs", "Venue", "Season"]],
                 width='stretch', hide_index=True,
             )
+        else:
+            st.info(spec.empty_state_help)
 
     st.divider()
 
     # --- Highest Successful Chases ---
-    st.subheader("Highest Successful Chases")
-    df_hc = _highest_chases(s1, s2, team_filter)
+    spec = _visual_spec(
+        "highest_chases",
+        "Highest Successful Chases",
+        default_limit=10,
+        extra_controls=[
+            select_control("team", "Team (optional)", team_options, "All Teams"),
+        ],
+    )
+    st.subheader(spec.title)
+    controls = render_visual_controls(spec)
+    render_active_filters(active_control_chips(spec, controls))
+    team_val = None if controls.get("team") == "All Teams" else controls.get("team")
+    df_hc = _highest_chases(
+        season_range=controls.get("season_range"),
+        team=team_val,
+        limit=controls.get("limit"),
+    )
     if not df_hc.empty:
         disp = df_hc.copy()
         disp["score_wkt"] = disp["score"].astype(str) + "/" + disp["wickets"].astype(str)
@@ -848,14 +1310,30 @@ with tab_team:
             })[["Team", "Score", "Target", "Vs", "Venue", "Season"]],
             width='stretch', hide_index=True,
         )
+    else:
+        st.info(spec.empty_state_help)
 
 
 # ── ALL-ROUNDER TAB ───────────────────────────────────────────────────
 with tab_ar:
 
     # --- Scatter ---
-    st.subheader("All-Rounder Impact (500+ runs & 30+ wickets)")
-    df_ar = _allrounder_scatter(s1, s2)
+    spec = _visual_spec(
+        "allrounder_scatter",
+        "All-Rounder Impact",
+        extra_controls=[
+            number_control("min_runs", "Min runs", 500, 100, 2000, step=100, help_text="Minimum runs to qualify"),
+            number_control("min_wickets", "Min wickets", 30, 10, 100, help_text="Minimum wickets to qualify"),
+        ],
+    )
+    st.subheader(spec.title)
+    controls = render_visual_controls(spec)
+    render_active_filters(active_control_chips(spec, controls))
+    df_ar = _allrounder_scatter(
+        season_range=controls.get("season_range"),
+        min_runs=controls.get("min_runs"),
+        min_wickets=controls.get("min_wickets"),
+    )
     if not df_ar.empty:
         fig = styled_scatter(
             df_ar, x="runs", y="wickets",
@@ -872,24 +1350,56 @@ with tab_ar:
             width='stretch', hide_index=True,
         )
     else:
-        st.info("No qualifying all-rounders for the selected range.")
+        st.info(spec.empty_state_help)
 
     st.divider()
 
     # --- POTM ---
-    st.subheader("Most Player of the Match Awards")
-    df_potm = _most_potm(s1, s2, team_filter)
+    spec = _visual_spec(
+        "most_potm",
+        "Most Player of the Match Awards",
+        default_limit=15,
+        extra_controls=[
+            select_control("team", "Team (optional)", team_options, "All Teams"),
+        ],
+    )
+    st.subheader(spec.title)
+    controls = render_visual_controls(spec)
+    render_active_filters(active_control_chips(spec, controls))
+    team_val = None if controls.get("team") == "All Teams" else controls.get("team")
+    df_potm = _most_potm(
+        season_range=controls.get("season_range"),
+        team=team_val,
+        limit=controls.get("limit"),
+    )
     if not df_potm.empty:
         fig = styled_bar(df_potm, x="player", y="awards",
-                         title="Top 15 POTM Winners")
+                         title="Top POTM Winners")
         st.plotly_chart(fig, width='stretch')
+    else:
+        st.info(spec.empty_state_help)
 
 
 # ── MISCELLANEOUS TAB ─────────────────────────────────────────────────
 with tab_misc:
 
-    st.subheader("Most Expensive Overs")
-    df_eo = _expensive_overs(s1, s2, team_filter)
+    spec = _visual_spec(
+        "expensive_overs",
+        "Most Expensive Overs",
+        default_limit=20,
+        extra_controls=[
+            select_control("team", "Team (optional)", team_options, "All Teams"),
+        ],
+    )
+    st.subheader(spec.title)
+    controls = render_visual_controls(spec)
+    render_active_filters(active_control_chips(spec, controls))
+    team_val = None if controls.get("team") == "All Teams" else controls.get("team")
+    df_eo = _expensive_overs(
+        season_range=controls.get("season_range"),
+        team=team_val,
+        limit=controls.get("limit"),
+    )
     if not df_eo.empty:
         st.dataframe(
             df_eo.rename(columns={
@@ -900,4 +1410,4 @@ with tab_misc:
             width='stretch', hide_index=True,
         )
     else:
-        st.info("No data for the selected filters.")
+        st.info(spec.empty_state_help)

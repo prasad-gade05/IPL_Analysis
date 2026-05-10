@@ -12,14 +12,38 @@ from src.visualizations.theme import (
 )
 from src.utils.constants import TEAM_COLORS, ALL_SEASONS, PHASE_COLORS
 from src.utils.formatters import format_number, format_strike_rate, format_economy
+from src.utils.control_renderer import render_visual_controls, active_control_chips
+from src.utils.control_schema import VisualSpec
+from src.utils.visual_specs import season_range_control
+from src.visualizations.card_renderer import render_active_filters
+
+# ── Helper functions ───────────────────────────────────────────────
+
+DEFAULT_SEASON_RANGE = (min(ALL_SEASONS), max(ALL_SEASONS))
+
+
+def _sanitize_season_range(season_range: tuple[int, int] | None = None) -> tuple[int, int]:
+    if season_range is None:
+        return DEFAULT_SEASON_RANGE
+    start, end = season_range
+    start = max(DEFAULT_SEASON_RANGE[0], int(start))
+    end = min(DEFAULT_SEASON_RANGE[1], int(end))
+    return (start, end) if start <= end else (end, start)
+
+
+def _season_condition(column: str, season_range: tuple[int, int] | None = None) -> str:
+    start, end = _sanitize_season_range(season_range)
+    return f"{column} BETWEEN {start} AND {end}"
+
 
 # ── Cached data loaders ────────────────────────────────────────────
 
 
 @st.cache_data(ttl=3600)
-def _scoring_trends():
+def _scoring_trends(season_range: tuple[int, int] = DEFAULT_SEASON_RANGE):
     """Avg match aggregate and per-innings averages per season."""
-    return query("""
+    season_filter = _season_condition("season", season_range)
+    return query(f"""
         SELECT season,
                ROUND(AVG(COALESCE(team1_score, 0)
                        + COALESCE(team2_score, 0)), 1) AS avg_aggregate,
@@ -27,21 +51,23 @@ def _scoring_trends():
                ROUND(AVG(team2_score), 1)              AS avg_second_innings
         FROM   matches
         WHERE  result_type != 'no result'
+          AND  {season_filter}
         GROUP  BY season
         ORDER  BY season
     """)
 
 
 @st.cache_data(ttl=3600)
-def _extreme_scores():
+def _extreme_scores(season_range: tuple[int, int] = DEFAULT_SEASON_RANGE):
     """200+ and sub-130 team innings counts per season."""
-    return query("""
+    season_filter = _season_condition("season", season_range)
+    return query(f"""
         WITH innings AS (
             SELECT season, team1_score AS score
-            FROM   matches WHERE result_type != 'no result'
+            FROM   matches WHERE result_type != 'no result' AND {season_filter}
             UNION ALL
             SELECT season, team2_score AS score
-            FROM   matches WHERE result_type != 'no result'
+            FROM   matches WHERE result_type != 'no result' AND {season_filter}
         )
         SELECT season,
                SUM(CASE WHEN score >= 200 THEN 1 ELSE 0 END) AS scores_200_plus,
@@ -53,25 +79,28 @@ def _extreme_scores():
 
 
 @st.cache_data(ttl=3600)
-def _score_distribution():
+def _score_distribution(season_range: tuple[int, int] = DEFAULT_SEASON_RANGE):
     """All team innings scores for box-plot distribution."""
-    return query("""
+    season_filter = _season_condition("season", season_range)
+    return query(f"""
         SELECT season, team1_score AS score
-        FROM   matches WHERE result_type != 'no result'
+        FROM   matches WHERE result_type != 'no result' AND {season_filter}
         UNION ALL
         SELECT season, team2_score AS score
-        FROM   matches WHERE result_type != 'no result'
+        FROM   matches WHERE result_type != 'no result' AND {season_filter}
     """)
 
 
 @st.cache_data(ttl=3600)
-def _batting_evolution():
+def _batting_evolution(season_range: tuple[int, int] = DEFAULT_SEASON_RANGE):
     """Strike rate, boundary counts, dot %, boundary composition."""
-    return query("""
+    season_filter = _season_condition("b.season", season_range)
+    return query(f"""
         WITH season_matches AS (
             SELECT season, COUNT(*) AS total_matches
             FROM   matches
             WHERE  result_type != 'no result'
+              AND  {_season_condition("season", season_range)}
             GROUP  BY season
         )
         SELECT b.season,
@@ -93,19 +122,22 @@ def _batting_evolution():
         FROM   balls b
         JOIN   season_matches sm ON b.season = sm.season
         WHERE  NOT b.is_super_over
+          AND  {season_filter}
         GROUP  BY b.season, sm.total_matches
         ORDER  BY b.season
     """)
 
 
 @st.cache_data(ttl=3600)
-def _bowling_evolution():
+def _bowling_evolution(season_range: tuple[int, int] = DEFAULT_SEASON_RANGE):
     """Overall bowling economy and wickets per match per season."""
-    return query("""
+    season_filter = _season_condition("b.season", season_range)
+    return query(f"""
         WITH season_matches AS (
             SELECT season, COUNT(*) AS total_matches
             FROM   matches
             WHERE  result_type != 'no result'
+              AND  {_season_condition("season", season_range)}
             GROUP  BY season
         )
         SELECT b.season,
@@ -121,15 +153,17 @@ def _bowling_evolution():
         FROM   balls b
         JOIN   season_matches sm ON b.season = sm.season
         WHERE  NOT b.is_super_over
+          AND  {season_filter}
         GROUP  BY b.season, sm.total_matches
         ORDER  BY b.season
     """)
 
 
 @st.cache_data(ttl=3600)
-def _dismissal_evolution():
+def _dismissal_evolution(season_range: tuple[int, int] = DEFAULT_SEASON_RANGE):
     """Dismissal type counts per season for stacked area."""
-    return query("""
+    season_filter = _season_condition("season", season_range)
+    return query(f"""
         SELECT season,
                CASE
                    WHEN wicket_kind IN ('caught', 'caught and bowled') THEN 'Caught'
@@ -144,15 +178,17 @@ def _dismissal_evolution():
         WHERE  wicket_kind IS NOT NULL
           AND  wicket_kind NOT IN ('not_out', 'retired hurt', 'retired out')
           AND  NOT is_super_over
+          AND  {season_filter}
         GROUP  BY season, dismissal_type
         ORDER  BY season, dismissal_type
     """)
 
 
 @st.cache_data(ttl=3600)
-def _death_economy():
+def _death_economy(season_range: tuple[int, int] = DEFAULT_SEASON_RANGE):
     """Economy rate in death overs (16-20) per season."""
-    return query("""
+    season_filter = _season_condition("season", season_range)
+    return query(f"""
         SELECT season,
                ROUND(SUM(runs_bowler) * 6.0
                      / NULLIF(SUM(CASE WHEN valid_ball THEN 1 ELSE 0 END), 0),
@@ -160,15 +196,17 @@ def _death_economy():
         FROM   balls
         WHERE  match_phase = 'death'
           AND  NOT is_super_over
+          AND  {season_filter}
         GROUP  BY season
         ORDER  BY season
     """)
 
 
 @st.cache_data(ttl=3600)
-def _maiden_overs():
+def _maiden_overs(season_range: tuple[int, int] = DEFAULT_SEASON_RANGE):
     """Maiden overs per season."""
-    return query("""
+    season_filter = _season_condition("season", season_range)
+    return query(f"""
         SELECT season, COUNT(*) AS maiden_overs
         FROM (
             SELECT DISTINCT season, match_id, innings, over
@@ -176,6 +214,7 @@ def _maiden_overs():
             WHERE  is_maiden
               AND  valid_ball
               AND  NOT is_super_over
+              AND  {season_filter}
         ) t
         GROUP  BY season
         ORDER  BY season
@@ -183,9 +222,10 @@ def _maiden_overs():
 
 
 @st.cache_data(ttl=3600)
-def _strategy_trends():
+def _strategy_trends(season_range: tuple[int, int] = DEFAULT_SEASON_RANGE):
     """Toss decision trend and bat-first / chase win rates per season."""
-    return query("""
+    season_filter = _season_condition("season", season_range)
+    return query(f"""
         SELECT season,
                ROUND(SUM(CASE WHEN toss_decision = 'field' THEN 1 ELSE 0 END)
                      * 100.0 / COUNT(*), 1) AS pct_field_first,
@@ -208,15 +248,17 @@ def _strategy_trends():
                               THEN 1 ELSE 0 END), 0),
                  1) AS chase_win_pct
         FROM   matches
+        WHERE  {season_filter}
         GROUP  BY season
         ORDER  BY season
     """)
 
 
 @st.cache_data(ttl=3600)
-def _phase_run_rates():
+def _phase_run_rates(season_range: tuple[int, int] = DEFAULT_SEASON_RANGE):
     """Run rate per match phase per season."""
-    return query("""
+    season_filter = _season_condition("season", season_range)
+    return query(f"""
         SELECT season,
                match_phase,
                ROUND(SUM((runs_batter + runs_extras)) * 6.0
@@ -225,15 +267,17 @@ def _phase_run_rates():
         FROM   balls
         WHERE  match_phase IS NOT NULL
           AND  NOT is_super_over
+          AND  {season_filter}
         GROUP  BY season, match_phase
         ORDER  BY season, match_phase
     """)
 
 
 @st.cache_data(ttl=3600)
-def _match_dynamics():
+def _match_dynamics(season_range: tuple[int, int] = DEFAULT_SEASON_RANGE):
     """Close matches, super overs, DLS matches, and season duration."""
-    return query("""
+    season_filter = _season_condition("m.season", season_range)
+    return query(f"""
         SELECT m.season,
                ROUND(
                  SUM(CASE
@@ -251,6 +295,7 @@ def _match_dynamics():
                sm.duration_days
         FROM   matches m
         JOIN   season_meta sm ON m.season = sm.season
+        WHERE  {season_filter}
         GROUP  BY m.season, sm.dls_matches, sm.duration_days
         ORDER  BY m.season
     """)
@@ -278,17 +323,25 @@ tab_scoring, tab_batting, tab_bowling, tab_strategy, tab_dynamics = st.tabs([
 # ── Tab 1: Scoring Trends ─────────────────────────────────────────
 
 with tab_scoring:
-    scoring = _scoring_trends()
-    extreme = _extreme_scores()
-    dist = _score_distribution()
-
+    # Average Match Aggregate
+    spec_agg = VisualSpec(
+        id="trends_avg_aggregate",
+        title="Average Match Aggregate",
+        controls=[season_range_control()],
+    )
+    st.markdown(f"#### {spec_agg.title}")
+    controls_agg = render_visual_controls(spec_agg)
+    render_active_filters(active_control_chips(spec_agg, controls_agg))
+    
+    scoring = _scoring_trends(controls_agg.get("season_range", DEFAULT_SEASON_RANGE))
+    
     if scoring.empty:
         st.info("No scoring data available.")
     else:
         st.plotly_chart(
             styled_line(scoring, x="season", y="avg_aggregate",
                         title="Average Match Aggregate per Season"),
-            width='stretch',
+            use_container_width=True,
         )
 
         innings_melted = scoring.melt(
@@ -304,34 +357,69 @@ with tab_scoring:
             styled_line(innings_melted, x="season", y="Avg Score",
                         title="Average 1st vs 2nd Innings Score",
                         color="Innings"),
-            width='stretch',
+            use_container_width=True,
         )
 
+    # Extreme Scores
+    spec_extreme = VisualSpec(
+        id="trends_extreme_scores",
+        title="Extreme Scores",
+        controls=[season_range_control()],
+    )
+    st.markdown(f"#### {spec_extreme.title}")
+    controls_extreme = render_visual_controls(spec_extreme)
+    render_active_filters(active_control_chips(spec_extreme, controls_extreme))
+    
+    extreme = _extreme_scores(controls_extreme.get("season_range", DEFAULT_SEASON_RANGE))
+
+    if not extreme.empty:
         c1, c2 = st.columns(2)
         with c1:
             st.plotly_chart(
                 styled_bar(extreme, x="season", y="scores_200_plus",
                            title="200+ Scores per Season"),
-                width='stretch',
+                use_container_width=True,
             )
         with c2:
             st.plotly_chart(
                 styled_bar(extreme, x="season", y="scores_sub_130",
                            title="Sub-130 Scores per Season"),
-                width='stretch',
+                use_container_width=True,
             )
 
+    # Score Distribution
+    spec_dist = VisualSpec(
+        id="trends_score_distribution",
+        title="Score Distribution",
+        controls=[season_range_control()],
+    )
+    st.markdown(f"#### {spec_dist.title}")
+    controls_dist = render_visual_controls(spec_dist)
+    render_active_filters(active_control_chips(spec_dist, controls_dist))
+    
+    dist = _score_distribution(controls_dist.get("season_range", DEFAULT_SEASON_RANGE))
+
+    if not dist.empty:
         dist_plot = dist.copy()
         dist_plot["season"] = dist_plot["season"].astype(str)
         fig_box = px.box(dist_plot, x="season", y="score",
                          title="Score Distribution Shift across Seasons")
         apply_ipl_style(fig_box, height=500)
-        st.plotly_chart(fig_box, width='stretch')
+        st.plotly_chart(fig_box, use_container_width=True)
 
 # ── Tab 2: Batting Style Evolution ─────────────────────────────────
 
 with tab_batting:
-    batting = _batting_evolution()
+    spec_batting = VisualSpec(
+        id="trends_batting_evolution",
+        title="Batting Style Evolution",
+        controls=[season_range_control()],
+    )
+    st.markdown(f"#### {spec_batting.title}")
+    controls_batting = render_visual_controls(spec_batting)
+    render_active_filters(active_control_chips(spec_batting, controls_batting))
+    
+    batting = _batting_evolution(controls_batting.get("season_range", DEFAULT_SEASON_RANGE))
 
     if batting.empty:
         st.info("No batting data available.")
@@ -339,7 +427,7 @@ with tab_batting:
         st.plotly_chart(
             styled_line(batting, x="season", y="avg_strike_rate",
                         title="Average Strike Rate per Season"),
-            width='stretch',
+            use_container_width=True,
         )
 
         c1, c2 = st.columns(2)
@@ -347,19 +435,19 @@ with tab_batting:
             st.plotly_chart(
                 styled_line(batting, x="season", y="sixes_per_match",
                             title="Sixes per Match"),
-                width='stretch',
+                use_container_width=True,
             )
         with c2:
             st.plotly_chart(
                 styled_line(batting, x="season", y="fours_per_match",
                             title="Fours per Match"),
-                width='stretch',
+                use_container_width=True,
             )
 
         st.plotly_chart(
             styled_line(batting, x="season", y="dot_ball_pct",
                         title="Dot Ball % per Season"),
-            width='stretch',
+            use_container_width=True,
         )
 
         batting = batting.copy()
@@ -387,15 +475,24 @@ with tab_batting:
             category_orders={"Source": ["Running", "Fours", "Sixes"]},
         )
         apply_ipl_style(fig_comp, height=500)
-        st.plotly_chart(fig_comp, width='stretch')
+        st.plotly_chart(fig_comp, use_container_width=True)
 
 # ── Tab 3: Bowling Evolution ──────────────────────────────────────
 
 with tab_bowling:
-    bowling = _bowling_evolution()
-    dismissals = _dismissal_evolution()
-    death_econ = _death_economy()
-    maidens = _maiden_overs()
+    spec_bowling = VisualSpec(
+        id="trends_bowling_evolution",
+        title="Bowling Evolution",
+        controls=[season_range_control()],
+    )
+    st.markdown(f"#### {spec_bowling.title}")
+    controls_bowling = render_visual_controls(spec_bowling)
+    render_active_filters(active_control_chips(spec_bowling, controls_bowling))
+    
+    bowling = _bowling_evolution(controls_bowling.get("season_range", DEFAULT_SEASON_RANGE))
+    dismissals = _dismissal_evolution(controls_bowling.get("season_range", DEFAULT_SEASON_RANGE))
+    death_econ = _death_economy(controls_bowling.get("season_range", DEFAULT_SEASON_RANGE))
+    maidens = _maiden_overs(controls_bowling.get("season_range", DEFAULT_SEASON_RANGE))
 
     if bowling.empty:
         st.info("No bowling data available.")
@@ -405,13 +502,13 @@ with tab_bowling:
             st.plotly_chart(
                 styled_line(bowling, x="season", y="avg_economy",
                             title="Average Economy Rate per Season"),
-                width='stretch',
+                use_container_width=True,
             )
         with c2:
             st.plotly_chart(
                 styled_line(bowling, x="season", y="wickets_per_match",
                             title="Wickets per Match"),
-                width='stretch',
+                use_container_width=True,
             )
 
         if not dismissals.empty:
@@ -426,7 +523,7 @@ with tab_bowling:
                 category_orders={"dismissal_type": type_order},
             )
             apply_ipl_style(fig_dismiss, height=500)
-            st.plotly_chart(fig_dismiss, width='stretch')
+            st.plotly_chart(fig_dismiss, use_container_width=True)
 
         c1, c2 = st.columns(2)
         with c1:
@@ -434,21 +531,30 @@ with tab_bowling:
                 st.plotly_chart(
                     styled_line(death_econ, x="season", y="death_economy",
                                 title="Death Over Economy (Overs 16–20)"),
-                    width='stretch',
+                    use_container_width=True,
                 )
         with c2:
             if not maidens.empty:
                 st.plotly_chart(
                     styled_bar(maidens, x="season", y="maiden_overs",
                                title="Maiden Overs per Season"),
-                    width='stretch',
+                    use_container_width=True,
                 )
 
 # ── Tab 4: Strategy Evolution ─────────────────────────────────────
 
 with tab_strategy:
-    strategy = _strategy_trends()
-    phases = _phase_run_rates()
+    spec_strategy = VisualSpec(
+        id="trends_strategy_evolution",
+        title="Strategy Evolution",
+        controls=[season_range_control()],
+    )
+    st.markdown(f"#### {spec_strategy.title}")
+    controls_strategy = render_visual_controls(spec_strategy)
+    render_active_filters(active_control_chips(spec_strategy, controls_strategy))
+    
+    strategy = _strategy_trends(controls_strategy.get("season_range", DEFAULT_SEASON_RANGE))
+    phases = _phase_run_rates(controls_strategy.get("season_range", DEFAULT_SEASON_RANGE))
 
     if strategy.empty:
         st.info("No strategy data available.")
@@ -456,7 +562,7 @@ with tab_strategy:
         st.plotly_chart(
             styled_line(strategy, x="season", y="pct_field_first",
                         title="% Teams Choosing to Field First after Toss"),
-            width='stretch',
+            use_container_width=True,
         )
 
         c1, c2 = st.columns(2)
@@ -464,13 +570,13 @@ with tab_strategy:
             st.plotly_chart(
                 styled_line(strategy, x="season", y="bat_first_win_pct",
                             title="Bat-First Win % per Season"),
-                width='stretch',
+                use_container_width=True,
             )
         with c2:
             st.plotly_chart(
                 styled_line(strategy, x="season", y="chase_win_pct",
                             title="Chasing Success Rate per Season"),
-                width='stretch',
+                use_container_width=True,
             )
 
         if not phases.empty:
@@ -484,7 +590,7 @@ with tab_strategy:
             st.plotly_chart(
                 styled_line(pp, x="season", y="pp_rr",
                             title="Powerplay Run Rate per Season"),
-                width='stretch',
+                use_container_width=True,
             )
 
             accel = pp.merge(death, on="season", how="inner")
@@ -492,13 +598,22 @@ with tab_strategy:
             st.plotly_chart(
                 styled_line(accel, x="season", y="acceleration",
                             title="Death Over Acceleration (Death RR ÷ PP RR)"),
-                width='stretch',
+                use_container_width=True,
             )
 
 # ── Tab 5: Match Dynamics ─────────────────────────────────────────
 
 with tab_dynamics:
-    dynamics = _match_dynamics()
+    spec_dynamics = VisualSpec(
+        id="trends_match_dynamics",
+        title="Match Dynamics",
+        controls=[season_range_control()],
+    )
+    st.markdown(f"#### {spec_dynamics.title}")
+    controls_dynamics = render_visual_controls(spec_dynamics)
+    render_active_filters(active_control_chips(spec_dynamics, controls_dynamics))
+    
+    dynamics = _match_dynamics(controls_dynamics.get("season_range", DEFAULT_SEASON_RANGE))
 
     if dynamics.empty:
         st.info("No match dynamics data available.")
@@ -507,7 +622,7 @@ with tab_dynamics:
             styled_line(dynamics, x="season", y="close_match_pct",
                         title="Close Matches % per Season "
                               "(Won by ≤10 Runs or ≤2 Wickets)"),
-            width='stretch',
+            use_container_width=True,
         )
 
         c1, c2 = st.columns(2)
@@ -515,17 +630,17 @@ with tab_dynamics:
             st.plotly_chart(
                 styled_bar(dynamics, x="season", y="super_over_count",
                            title="Super Overs per Season"),
-                width='stretch',
+                use_container_width=True,
             )
         with c2:
             st.plotly_chart(
                 styled_bar(dynamics, x="season", y="dls_matches",
                            title="DLS-Affected Matches per Season"),
-                width='stretch',
+                use_container_width=True,
             )
 
         st.plotly_chart(
             styled_line(dynamics, x="season", y="duration_days",
                         title="Season Duration (Days)"),
-            width='stretch',
+            use_container_width=True,
         )

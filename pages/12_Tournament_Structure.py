@@ -14,10 +14,35 @@ from src.visualizations.theme import (
 )
 from src.utils.constants import TEAM_COLORS, ALL_SEASONS
 from src.utils.formatters import format_number
+from src.utils.control_renderer import render_visual_controls, active_control_chips
+from src.utils.control_schema import VisualSpec
+from src.utils.visual_specs import season_range_control
+from src.visualizations.card_renderer import render_active_filters
 
 st.markdown(big_number_style(), unsafe_allow_html=True)
 st.title("Tournament Structure")
 st.caption("How each IPL season was structured — formats, standings, playoffs & fixtures.")
+
+# ──────────────────────────────────────────────
+# Helper functions
+# ──────────────────────────────────────────────
+
+DEFAULT_SEASON_RANGE = (min(ALL_SEASONS), max(ALL_SEASONS))
+
+
+def _sanitize_season_range(season_range: tuple[int, int] | None = None) -> tuple[int, int]:
+    if season_range is None:
+        return DEFAULT_SEASON_RANGE
+    start, end = season_range
+    start = max(DEFAULT_SEASON_RANGE[0], int(start))
+    end = min(DEFAULT_SEASON_RANGE[1], int(end))
+    return (start, end) if start <= end else (end, start)
+
+
+def _season_condition(column: str, season_range: tuple[int, int] | None = None) -> str:
+    start, end = _sanitize_season_range(season_range)
+    return f"{column} BETWEEN {start} AND {end}"
+
 
 # ──────────────────────────────────────────────
 # Cached query helpers
@@ -58,23 +83,27 @@ def _playoff_matches(season: int) -> pd.DataFrame:
 
 
 @st.cache_data(ttl=3600)
-def _season_comparison() -> pd.DataFrame:
-    return query("""
+def _season_comparison(season_range: tuple[int, int] = DEFAULT_SEASON_RANGE) -> pd.DataFrame:
+    season_filter = _season_condition("sm.season", season_range)
+    return query(f"""
         WITH top_batters AS (
             SELECT season, batter AS player, SUM(runs) AS runs
             FROM player_batting
+            WHERE {_season_condition("season", season_range)}
             GROUP BY season, batter
             QUALIFY ROW_NUMBER() OVER (PARTITION BY season ORDER BY SUM(runs) DESC) = 1
         ),
         top_bowlers AS (
             SELECT season, bowler AS player, SUM(wickets) AS wickets
             FROM player_bowling
+            WHERE {_season_condition("season", season_range)}
             GROUP BY season, bowler
             QUALIFY ROW_NUMBER() OVER (PARTITION BY season ORDER BY SUM(wickets) DESC) = 1
         ),
         highest AS (
             SELECT season, MAX(team1_score) AS max1, MAX(team2_score) AS max2
             FROM matches
+            WHERE {_season_condition("season", season_range)}
             GROUP BY season
         )
         SELECT sm.season,
@@ -91,26 +120,31 @@ def _season_comparison() -> pd.DataFrame:
         LEFT JOIN top_batters  tb ON sm.season = tb.season
         LEFT JOIN top_bowlers  tw ON sm.season = tw.season
         LEFT JOIN highest       h ON sm.season = h.season
+        WHERE {season_filter}
         ORDER BY sm.season
     """)
 
 
 @st.cache_data(ttl=3600)
-def _venue_season_matrix() -> pd.DataFrame:
-    return query("""
+def _venue_season_matrix(season_range: tuple[int, int] = DEFAULT_SEASON_RANGE) -> pd.DataFrame:
+    season_filter = _season_condition("season", season_range)
+    return query(f"""
         SELECT venue, season, COUNT(*) AS match_count
         FROM matches
+        WHERE {season_filter}
         GROUP BY venue, season
         ORDER BY venue, season
     """)
 
 
 @st.cache_data(ttl=3600)
-def _competitiveness_index() -> pd.DataFrame:
-    return query("""
+def _competitiveness_index(season_range: tuple[int, int] = DEFAULT_SEASON_RANGE) -> pd.DataFrame:
+    season_filter = _season_condition("season", season_range)
+    return query(f"""
         SELECT season,
                STDDEV(win_pct) AS win_pct_std
         FROM team_season
+        WHERE {season_filter}
         GROUP BY season
         ORDER BY season
     """)
@@ -246,7 +280,7 @@ fig_timeline.update_layout(
     xaxis=dict(dtick=1),
 )
 apply_ipl_style(fig_timeline, height=420)
-st.plotly_chart(fig_timeline, width='stretch')
+st.plotly_chart(fig_timeline, use_container_width=True)
 
 
 # ══════════════════════════════════════════════
@@ -276,7 +310,7 @@ else:
         {"NRR": "{:+.3f}", "Pos": "{:.0f}", "P": "{:.0f}",
          "W": "{:.0f}", "L": "{:.0f}", "NR": "{:.0f}", "Pts": "{:.0f}"}
     )
-    st.dataframe(styled_pts, width='stretch', hide_index=True, height=420)
+    st.dataframe(styled_pts, use_container_width=True, hide_index=True, height=420)
 
     # NRR horizontal bar chart
     st.subheader("Net Run Rate")
@@ -300,7 +334,7 @@ else:
                    zerolinecolor="rgba(255,255,255,0.3)", zerolinewidth=1),
     )
     apply_ipl_style(fig_nrr, height=max(350, len(pts) * 38), show_legend=False)
-    st.plotly_chart(fig_nrr, width='stretch')
+    st.plotly_chart(fig_nrr, use_container_width=True)
 
 
 # ══════════════════════════════════════════════
@@ -366,7 +400,7 @@ else:
                                "team2_score", "team2_wickets", "match_won_by"]].copy()
         po_display.columns = ["Stage", "Team 1", "Team 2", "T1 Score", "T1 Wkts",
                                "T2 Score", "T2 Wkts", "Winner"]
-        st.dataframe(po_display, width='stretch', hide_index=True)
+        st.dataframe(po_display, use_container_width=True, hide_index=True)
 
 
 # ══════════════════════════════════════════════
@@ -376,7 +410,16 @@ else:
 st.divider()
 st.markdown("## Season Comparison")
 
-comp = _season_comparison()
+spec_comparison = VisualSpec(
+    id="ts_season_comparison",
+    title="Season Comparison",
+    controls=[season_range_control()],
+)
+st.markdown(f"### {spec_comparison.title}")
+controls_comparison = render_visual_controls(spec_comparison)
+render_active_filters(active_control_chips(spec_comparison, controls_comparison))
+
+comp = _season_comparison(controls_comparison.get("season_range", DEFAULT_SEASON_RANGE))
 
 if comp.empty:
     st.info("No comparison data available.")
@@ -406,35 +449,41 @@ else:
         return [""] * len(row)
 
     styled_comp = table_df.style.apply(_highlight_selected, axis=1)
-    st.dataframe(styled_comp, width='stretch', hide_index=True, height=450)
+    st.dataframe(styled_comp, use_container_width=True, hide_index=True, height=450)
 
     # Two charts side by side
     col_a, col_b = st.columns(2)
 
     with col_a:
         st.subheader("Season Duration Trend")
+        # Use filtered meta_all based on the selected season_range
+        season_range_filter = controls_comparison.get("season_range", DEFAULT_SEASON_RANGE)
+        filtered_meta = meta_all[
+            (meta_all["season"] >= season_range_filter[0]) &
+            (meta_all["season"] <= season_range_filter[1])
+        ]
         fig_dur = styled_line(
-            meta_all, x="season", y="duration_days",
+            filtered_meta, x="season", y="duration_days",
             title="Duration (days) per Season", height=400,
         )
-        st.plotly_chart(fig_dur, width='stretch')
+        st.plotly_chart(fig_dur, use_container_width=True)
 
     with col_b:
         st.subheader("Competitiveness Index")
-        ci = _competitiveness_index()
+        ci = _competitiveness_index(controls_comparison.get("season_range", DEFAULT_SEASON_RANGE))
         if not ci.empty:
             ci["win_pct_std"] = ci["win_pct_std"].round(2)
             fig_ci = styled_line(
                 ci, x="season", y="win_pct_std",
                 title="Std Dev of Win% (lower = more competitive)", height=400,
             )
-            st.plotly_chart(fig_ci, width='stretch')
+            st.plotly_chart(fig_ci, use_container_width=True)
         else:
             st.info("Not enough data for competitiveness index.")
 
     # Venue distribution heatmap
     st.subheader("Venue × Season Heatmap")
-    vsm = _venue_season_matrix()
+    vsm = _venue_season_matrix(controls_comparison.get("season_range", DEFAULT_SEASON_RANGE))
     if not vsm.empty:
         pivot = vsm.pivot_table(
             index="venue", columns="season", values="match_count",
@@ -458,7 +507,7 @@ else:
             yaxis=dict(title="", autorange="reversed"),
         )
         apply_ipl_style(fig_hm, height=max(500, len(pivot) * 24), show_legend=False)
-        st.plotly_chart(fig_hm, width='stretch')
+        st.plotly_chart(fig_hm, use_container_width=True)
     else:
         st.info("No venue data available for heatmap.")
 
@@ -483,7 +532,7 @@ else:
         height=420,
     )
     fig_vd.update_layout(xaxis_tickangle=-45)
-    st.plotly_chart(fig_vd, width='stretch')
+    st.plotly_chart(fig_vd, use_container_width=True)
 
     # Team × Venue matrix (home-away approximation)
     st.subheader(f"Team × Venue Matrix — {selected_season}")
@@ -513,6 +562,6 @@ else:
             height=max(450, len(pivot_tv) * 36),
             show_legend=False,
         )
-        st.plotly_chart(fig_tv, width='stretch')
+        st.plotly_chart(fig_tv, use_container_width=True)
     else:
         st.info("No team-venue data available.")

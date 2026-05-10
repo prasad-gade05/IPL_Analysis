@@ -195,10 +195,14 @@ Fixed headline metrics:
 - `python -m compileall app.py pages src Data\preprocessing`
 - `python -m pytest tests\ --tb=short -q`
 
-Result at final pass:
+Result at incident close:
 
 - compile succeeded
-- test suite result: **25 passed**
+- test suite result at that time: **25 passed**
+
+Current repository state after later semantic-search and per-visual-control work:
+
+- `python -m pytest tests\ --tb=short -q` -> **52 passed**
 
 ### Data validation highlights
 

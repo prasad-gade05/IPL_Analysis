@@ -57,6 +57,16 @@ class TestImports:
         from src.db.connection import PARQUET_VIEWS
         assert "balls" in PARQUET_VIEWS
         assert "matches" in PARQUET_VIEWS
+        assert "team_match_results" in PARQUET_VIEWS
+        assert "over_summary" in PARQUET_VIEWS
+        assert "innings_tags" in PARQUET_VIEWS
+        assert "player_season_metrics" in PARQUET_VIEWS
+
+    def test_import_semantic_engine(self):
+        from src.semantic import SUPPORTED_EXAMPLES, run_semantic_query
+        assert len(SUPPORTED_EXAMPLES) >= 10
+        result = run_semantic_query("Who has the most 49s?")
+        assert result["supported"] is True
 
 
 class TestConstants:
@@ -118,6 +128,8 @@ class TestParquetData:
         "dot_sequences.parquet", "season_structure.parquet", "player_batting_match.parquet",
         "player_bowling_match.parquet", "partnerships.parquet", "dismissal_patterns.parquet",
         "dismissal_by_phase.parquet", "team_season.parquet", "points_table.parquet",
+        "team_match_results.parquet", "over_summary.parquet", "innings_tags.parquet",
+        "player_season_metrics.parquet",
     ]
 
     def test_all_parquet_files_exist(self):
@@ -182,3 +194,216 @@ class TestParquetData:
         ss = pd.read_parquet(DATA_PROCESSED / "season_structure.parquet")
         assert ss.shape[0] == 18, "Should have 18 seasons"
         assert ss["champion"].notna().all(), "Every season should have a champion"
+
+    def test_team_match_results_shape(self):
+        import pandas as pd
+        tmr = pd.read_parquet(DATA_PROCESSED / "team_match_results.parquet")
+        ms = pd.read_parquet(DATA_PROCESSED / "match_summary.parquet")
+        assert tmr.shape[0] == ms.shape[0] * 2
+        assert set(tmr["result"].unique()) <= {"won", "lost", "no_result"}
+
+    def test_over_summary_has_expected_columns(self):
+        import pandas as pd
+        over = pd.read_parquet(DATA_PROCESSED / "over_summary.parquet")
+        expected = {"deliveries_total", "legal_balls", "runs_total", "wides", "no_balls"}
+        assert expected.issubset(set(over.columns))
+        assert over["deliveries_total"].max() >= 6
+
+    def test_innings_tags_flags_are_present(self):
+        import pandas as pd
+        tags = pd.read_parquet(DATA_PROCESSED / "innings_tags.parquet")
+        expected = {"is_score_49", "is_score_99", "is_score_20_plus", "boundary_pct"}
+        assert expected.issubset(set(tags.columns))
+        assert tags["is_score_49"].dtype == bool
+
+
+class TestSemanticQueries:
+    """Golden tests for deterministic semantic query support."""
+
+    def test_most_49s(self):
+        from src.semantic import run_semantic_query
+        result = run_semantic_query("Who has the most 49s?")
+        df = result["data"]
+        assert result["supported"] is True
+        assert df.iloc[0]["Player"] == "AD Russell"
+        assert int(df.iloc[0]["Innings"]) == 4
+
+    def test_longest_over(self):
+        from src.semantic import run_semantic_query
+        result = run_semantic_query("What is the longest over ever bowled?")
+        df = result["data"]
+        assert result["supported"] is True
+        assert int(df.iloc[0]["Deliveries"]) == 11
+
+    def test_team_winning_streak(self):
+        from src.semantic import run_semantic_query
+        result = run_semantic_query("Which teams have the longest winning streaks?")
+        df = result["data"]
+        assert result["supported"] is True
+        assert "Kolkata Knight Riders" in set(df["team"] if "team" in df.columns else df["Player"])
+        streak_col = "Streak Length"
+        assert int(df[streak_col].max()) == 10
+
+    def test_team_winning_streak_season_overlap(self):
+        from src.semantic import run_semantic_query
+        result = run_semantic_query("Which teams have the longest winning streaks in 2024?")
+        df = result["data"]
+        assert result["supported"] is True
+        csk = df[df["team"] == "Chennai Super Kings"]
+        assert not csk.empty
+        assert int(csk.iloc[0]["Streak Length"]) == 5
+        assert int(csk.iloc[0]["From Season"]) == 2023
+        assert int(csk.iloc[0]["To Season"]) == 2024
+
+    def test_consecutive_400_run_seasons(self):
+        from src.semantic import run_semantic_query
+        result = run_semantic_query("Who has the most consecutive seasons with 400+ runs?")
+        df = result["data"]
+        assert result["supported"] is True
+        shubman = df[df["Player"] == "Shubman Gill"]
+        assert not shubman.empty
+        assert int(shubman.iloc[0]["Streak Length"]) == 6
+
+    def test_most_hat_tricks(self):
+        from src.semantic import run_semantic_query
+        result = run_semantic_query("Which bowlers have the most hat-tricks?")
+        df = result["data"]
+        assert result["supported"] is True
+        assert df.iloc[0]["Player"] == "A Mishra"
+        assert int(df.iloc[0]["Hat-Tricks"]) == 3
+
+    def test_three_consecutive_wickets_phrase_maps(self):
+        from src.semantic import run_semantic_query
+        result = run_semantic_query("Bowler with most three consecutive wickets")
+        df = result["data"]
+        assert result["supported"] is True
+        assert df.iloc[0]["Player"] == "A Mishra"
+        assert int(df.iloc[0]["Hat-Tricks"]) == 3
+
+    def test_all_hat_tricks(self):
+        from src.semantic import run_semantic_query
+        result = run_semantic_query("Show all hat-tricks in IPL history.")
+        df = result["data"]
+        assert result["supported"] is True
+        assert len(df) == 23
+
+    def test_most_maidens(self):
+        from src.semantic import run_semantic_query
+        result = run_semantic_query("Which bowlers have the most maidens?")
+        df = result["data"]
+        assert result["supported"] is True
+        assert int(df["Maidens"].max()) == 14
+
+    def test_most_ducks(self):
+        from src.semantic import run_semantic_query
+        result = run_semantic_query("Who has the most ducks?")
+        df = result["data"]
+        assert result["supported"] is True
+        assert df.iloc[0]["Player"] == "GJ Maxwell"
+        assert int(df.iloc[0]["Ducks"]) == 19
+
+    def test_most_golden_ducks(self):
+        from src.semantic import run_semantic_query
+        result = run_semantic_query("Who has the most golden ducks?")
+        df = result["data"]
+        assert result["supported"] is True
+        assert df.iloc[0]["Player"] == "Rashid Khan"
+        assert int(df.iloc[0]["Golden Ducks"]) == 12
+
+    def test_most_balls_in_innings(self):
+        from src.semantic import run_semantic_query
+        result = run_semantic_query("Who faced the most balls in an IPL innings?")
+        df = result["data"]
+        assert result["supported"] is True
+        assert df.iloc[0]["Player"] == "BB McCullum"
+        assert int(df.iloc[0]["Balls"]) == 73
+
+    def test_most_perfect_overs(self):
+        from src.semantic import run_semantic_query
+        result = run_semantic_query("Which bowlers have the most perfect overs?")
+        df = result["data"]
+        assert result["supported"] is True
+        assert df.iloc[0]["Player"] == "P Kumar"
+        assert int(df.iloc[0]["Perfect Overs"]) == 12
+
+    def test_wicket_streak(self):
+        from src.semantic import run_semantic_query
+        result = run_semantic_query("Which bowlers have the longest wicket streaks?")
+        df = result["data"]
+        assert result["supported"] is True
+        assert int(df.iloc[0]["Streak Length"]) == 3
+
+    def test_batter_dot_streak(self):
+        from src.semantic import run_semantic_query
+        result = run_semantic_query("Who has the longest dot-ball streak as a batter?")
+        df = result["data"]
+        assert result["supported"] is True
+        assert df.iloc[0]["Player"] == "G Gambhir"
+        assert int(df.iloc[0]["Streak Length"]) == 17
+
+    def test_batter_dot_streak_season_overlap(self):
+        from src.semantic import run_semantic_query
+        result = run_semantic_query("Who has the longest dot-ball streak as a batter in 2024?")
+        df = result["data"]
+        assert result["supported"] is True
+        assert df.iloc[0]["Player"] == "JC Buttler"
+        assert int(df.iloc[0]["Streak Length"]) == 10
+        assert int(df.iloc[0]["From Season"]) == 2023
+        assert int(df.iloc[0]["To Season"]) == 2024
+
+    def test_boundary_streak(self):
+        from src.semantic import run_semantic_query
+        result = run_semantic_query("Who has the longest boundary streak?")
+        df = result["data"]
+        assert result["supported"] is True
+        assert df.iloc[0]["Player"] == "YK Pathan"
+        assert int(df.iloc[0]["Streak Length"]) == 11
+
+    def test_scoring_streak(self):
+        from src.semantic import run_semantic_query
+        result = run_semantic_query("Who has the longest scoring-shot streak?")
+        df = result["data"]
+        assert result["supported"] is True
+        assert df.iloc[0]["Player"] == "Shubman Gill"
+        assert int(df.iloc[0]["Streak Length"]) == 39
+
+    def test_most_extras_in_over(self):
+        from src.semantic import run_semantic_query
+        result = run_semantic_query("Which overs had the most extras?")
+        df = result["data"]
+        assert result["supported"] is True
+        assert int(df.iloc[0]["Extras"]) == 12
+
+    def test_most_sixes_in_over(self):
+        from src.semantic import run_semantic_query
+        result = run_semantic_query("Which overs had the most sixes?")
+        df = result["data"]
+        assert result["supported"] is True
+        assert int(df.iloc[0]["Sixes"]) == 5
+
+    def test_batter_dismissal_type(self):
+        from src.semantic import run_semantic_query
+        result = run_semantic_query("Who has been caught the most?")
+        df = result["data"]
+        assert result["supported"] is True
+        assert df.iloc[0]["Player"] == "RG Sharma"
+        assert int(df.iloc[0]["Caught Dismissals"]) == 168
+
+    def test_bowler_dismissal_type(self):
+        from src.semantic import run_semantic_query
+        result = run_semantic_query("Which bowlers have the most LBWs?")
+        df = result["data"]
+        assert result["supported"] is True
+        assert df.iloc[0]["Player"] == "Rashid Khan"
+        assert int(df.iloc[0]["LBWs"]) == 37
+
+    def test_year_for_prompt_does_not_match_four_fors(self):
+        from src.semantic import run_semantic_query
+        result = run_semantic_query("Who has the most consecutive 20+ scores in 2024 for V Kohli?")
+        df = result["data"]
+        assert result["supported"] is True
+        assert result["plan"].intent_id == "twenty-plus-streak"
+        assert df.iloc[0]["Player"] == "V Kohli"
+        assert int(df.iloc[0]["Streak Length"]) == 9
+        assert int(df.iloc[0]["From Season"]) == 2024
+        assert int(df.iloc[0]["To Season"]) == 2025

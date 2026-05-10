@@ -15,6 +15,10 @@ from src.visualizations.theme import (
 )
 from src.utils.constants import TEAM_COLORS, ALL_SEASONS
 from src.utils.formatters import format_number
+from src.utils.control_renderer import render_visual_controls, active_control_chips
+from src.utils.control_schema import VisualSpec
+from src.utils.visual_specs import limit_control
+from src.visualizations.card_renderer import render_active_filters
 
 
 # --- Session State ---
@@ -139,6 +143,18 @@ def load_alltime_top_bowlers(s_start: int, s_end: int, limit: int = 10):
         ORDER BY total_wickets DESC, runs_conceded ASC
         LIMIT ?
     """, [s_start, s_end, limit])
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  VISUAL SPECS
+# ═══════════════════════════════════════════════════════════════════════
+
+def _alltime_leaders_spec(title: str, visual_id: str) -> VisualSpec:
+    return VisualSpec(
+        id=visual_id,
+        title=title,
+        controls=[limit_control(default=10, minimum=5, maximum=30)],
+    )
 
 
 @st.cache_data(ttl=3600)
@@ -342,24 +358,40 @@ def main():
     # All-Time Leaders
     st.subheader(f"All-Time Leaders ({s_start} - {s_end})")
     col_at_bat, col_at_bowl = st.columns(2)
-    at_bat = load_alltime_top_batters(s_start, s_end)
-    at_bowl = load_alltime_top_bowlers(s_start, s_end)
 
+    # All-Time Top Run-Scorers
     with col_at_bat:
+        bat_spec = _alltime_leaders_spec("Top Run-Scorers", "home_top_batters")
+        bat_controls = render_visual_controls(bat_spec)
+        render_active_filters(active_control_chips(bat_spec, bat_controls))
+        bat_limit = bat_controls.get("limit", 10)
+        at_bat = load_alltime_top_batters(s_start, s_end, bat_limit)
         if not at_bat.empty:
             fig = build_horizontal_bar(
                 at_bat, x_col="total_runs", y_col="batter",
-                title="All-Time Top 10 Run-Scorers", color=IPL_COLORWAY[0], height=420,
+                title=f"All-Time Top {bat_limit} Run-Scorers", color=IPL_COLORWAY[0],
+                height=max(420, bat_limit * 35),
             )
             st.plotly_chart(fig, width='stretch')
+        else:
+            st.info("No batting data available.")
 
+    # All-Time Top Wicket-Takers
     with col_at_bowl:
+        bowl_spec = _alltime_leaders_spec("Top Wicket-Takers", "home_top_bowlers")
+        bowl_controls = render_visual_controls(bowl_spec)
+        render_active_filters(active_control_chips(bowl_spec, bowl_controls))
+        bowl_limit = bowl_controls.get("limit", 10)
+        at_bowl = load_alltime_top_bowlers(s_start, s_end, bowl_limit)
         if not at_bowl.empty:
             fig = build_horizontal_bar(
                 at_bowl, x_col="total_wickets", y_col="bowler",
-                title="All-Time Top 10 Wicket-Takers", color=IPL_COLORWAY[1], height=420,
+                title=f"All-Time Top {bowl_limit} Wicket-Takers", color=IPL_COLORWAY[1],
+                height=max(420, bowl_limit * 35),
             )
             st.plotly_chart(fig, width='stretch')
+        else:
+            st.info("No bowling data available.")
 
 
 

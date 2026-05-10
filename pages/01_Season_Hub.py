@@ -19,6 +19,10 @@ from src.utils.formatters import (
     format_number, format_strike_rate, format_economy,
     format_average, format_overs,
 )
+from src.utils.control_renderer import active_control_chips, render_visual_controls
+from src.utils.control_schema import VisualSpec
+from src.utils.visual_specs import limit_control, number_control
+from src.visualizations.card_renderer import render_active_filters, render_dataframe
 
 # ── Cached data loaders ────────────────────────────────────────────
 
@@ -110,6 +114,7 @@ def _team_scoring(season: int) -> pd.DataFrame:
 
 @st.cache_data(ttl=3600)
 def _top_run_scorers(season: int, limit: int = 10) -> pd.DataFrame:
+    limit = max(1, min(int(limit), 50))
     return query(
         """
         SELECT batter,
@@ -137,6 +142,7 @@ def _top_run_scorers(season: int, limit: int = 10) -> pd.DataFrame:
 
 @st.cache_data(ttl=3600)
 def _top_six_hitters(season: int, limit: int = 10) -> pd.DataFrame:
+    limit = max(1, min(int(limit), 50))
     return query(
         """
         SELECT batter,
@@ -156,6 +162,8 @@ def _top_six_hitters(season: int, limit: int = 10) -> pd.DataFrame:
 def _top_strike_rates(
     season: int, min_balls: int = 100, limit: int = 10
 ) -> pd.DataFrame:
+    min_balls = max(1, int(min_balls))
+    limit = max(1, min(int(limit), 50))
     return query(
         """
         SELECT batter,
@@ -178,6 +186,7 @@ def _top_strike_rates(
 
 @st.cache_data(ttl=3600)
 def _top_wicket_takers(season: int, limit: int = 10) -> pd.DataFrame:
+    limit = max(1, min(int(limit), 50))
     return query(
         """
         SELECT bowler,
@@ -205,6 +214,8 @@ def _top_wicket_takers(season: int, limit: int = 10) -> pd.DataFrame:
 def _top_economy(
     season: int, min_balls: int = 50, limit: int = 10
 ) -> pd.DataFrame:
+    min_balls = max(1, int(min_balls))
+    limit = max(1, min(int(limit), 50))
     return query(
         """
         SELECT bowler,
@@ -514,11 +525,21 @@ with tab_team:
 # ── Batting Leaders Tab ───────────────────────────────────────────
 
 with tab_bat:
-    top_scorers = _top_run_scorers(selected_season)
+    # Visual spec for top run scorers
+    scorers_spec = VisualSpec(
+        id="season_top_scorers",
+        title="Top Run Scorers",
+        controls=[limit_control(default=10, minimum=5, maximum=25)],
+        empty_state_help="No batting data available for this season."
+    )
+    
+    st.subheader(scorers_spec.title)
+    scorers_controls = render_visual_controls(scorers_spec)
+    render_active_filters(active_control_chips(scorers_spec, scorers_controls))
+    
+    top_scorers = _top_run_scorers(selected_season, limit=scorers_controls.get("limit", 10))
 
     if not top_scorers.empty:
-        st.subheader("Top 10 Run Scorers")
-
         chart_df = top_scorers.sort_values("total_runs", ascending=True)
         fig = styled_bar(
             chart_df,
@@ -544,15 +565,24 @@ with tab_bat:
         disp["SR"] = disp["SR"].apply(
             lambda v: format_strike_rate(v) if pd.notna(v) else "—"
         )
-        st.dataframe(disp, width='stretch', hide_index=True)
+        render_dataframe(disp, scorers_spec.empty_state_help)
     else:
-        st.info("Batting data not available for this season.")
+        render_dataframe(pd.DataFrame(), scorers_spec.empty_state_help)
 
     col_six, col_sr = st.columns(2)
 
     with col_six:
-        st.subheader("Top Six Hitters")
-        six_df = _top_six_hitters(selected_season)
+        six_spec = VisualSpec(
+            id="season_six_hitters",
+            title="Top Six Hitters",
+            controls=[limit_control(default=10, minimum=5, maximum=25)],
+            empty_state_help="No data available."
+        )
+        st.subheader(six_spec.title)
+        six_controls = render_visual_controls(six_spec)
+        render_active_filters(active_control_chips(six_spec, six_controls))
+        
+        six_df = _top_six_hitters(selected_season, limit=six_controls.get("limit", 10))
         if not six_df.empty:
             chart_df = six_df.sort_values("total_sixes", ascending=True)
             fig = styled_bar(
@@ -565,11 +595,27 @@ with tab_bat:
             )
             st.plotly_chart(fig, width='stretch')
         else:
-            st.info("No data available.")
+            render_dataframe(pd.DataFrame(), six_spec.empty_state_help)
 
     with col_sr:
-        st.subheader("Best Strike Rate (min 100 balls)")
-        sr_df = _top_strike_rates(selected_season)
+        sr_spec = VisualSpec(
+            id="season_strike_rate",
+            title="Best Strike Rate",
+            controls=[
+                number_control("min_balls", "Minimum balls", default=100, minimum=20, maximum=500, step=10, help_text="Qualification threshold"),
+                limit_control(default=10, minimum=5, maximum=25),
+            ],
+            empty_state_help="No qualifying batters for selected threshold."
+        )
+        st.subheader(sr_spec.title)
+        sr_controls = render_visual_controls(sr_spec)
+        render_active_filters(active_control_chips(sr_spec, sr_controls))
+        
+        sr_df = _top_strike_rates(
+            selected_season,
+            min_balls=sr_controls.get("min_balls", 100),
+            limit=sr_controls.get("limit", 10)
+        )
         if not sr_df.empty:
             disp = sr_df[
                 [
@@ -581,18 +627,28 @@ with tab_bat:
             disp["SR"] = disp["SR"].apply(
                 lambda v: format_strike_rate(v) if pd.notna(v) else "—"
             )
-            st.dataframe(disp, width='stretch', hide_index=True)
+            render_dataframe(disp, sr_spec.empty_state_help)
         else:
-            st.info("No qualifying batters (min 100 balls).")
+            render_dataframe(pd.DataFrame(), sr_spec.empty_state_help)
 
 # ── Bowling Leaders Tab ───────────────────────────────────────────
 
 with tab_bowl:
-    top_bowlers = _top_wicket_takers(selected_season)
+    # Visual spec for top wicket takers
+    wickets_spec = VisualSpec(
+        id="season_wicket_takers",
+        title="Top Wicket Takers",
+        controls=[limit_control(default=10, minimum=5, maximum=25)],
+        empty_state_help="Bowling data not available for this season."
+    )
+    
+    st.subheader(wickets_spec.title)
+    wickets_controls = render_visual_controls(wickets_spec)
+    render_active_filters(active_control_chips(wickets_spec, wickets_controls))
+    
+    top_bowlers = _top_wicket_takers(selected_season, limit=wickets_controls.get("limit", 10))
 
     if not top_bowlers.empty:
-        st.subheader("Top 10 Wicket Takers")
-
         chart_df = top_bowlers.sort_values("total_wickets", ascending=True)
         fig = styled_bar(
             chart_df,
@@ -629,15 +685,31 @@ with tab_bowl:
         disp = disp[
             ["Bowler", "Inn", "Wkts", "Overs", "Runs", "Econ", "SR", "Maidens"]
         ]
-        st.dataframe(disp, width='stretch', hide_index=True)
+        render_dataframe(disp, wickets_spec.empty_state_help)
     else:
-        st.info("Bowling data not available for this season.")
+        render_dataframe(pd.DataFrame(), wickets_spec.empty_state_help)
 
     col_econ, col_fig = st.columns(2)
 
     with col_econ:
-        st.subheader("Best Economy (min 50 balls)")
-        econ_df = _top_economy(selected_season)
+        econ_spec = VisualSpec(
+            id="season_best_economy",
+            title="Best Economy",
+            controls=[
+                number_control("min_balls", "Minimum balls", default=50, minimum=12, maximum=300, step=6, help_text="Qualification threshold"),
+                limit_control(default=10, minimum=5, maximum=25),
+            ],
+            empty_state_help="No qualifying bowlers for selected threshold."
+        )
+        st.subheader(econ_spec.title)
+        econ_controls = render_visual_controls(econ_spec)
+        render_active_filters(active_control_chips(econ_spec, econ_controls))
+        
+        econ_df = _top_economy(
+            selected_season,
+            min_balls=econ_controls.get("min_balls", 50),
+            limit=econ_controls.get("limit", 10)
+        )
         if not econ_df.empty:
             disp = econ_df[
                 [
@@ -659,9 +731,9 @@ with tab_bowl:
             disp = disp[
                 ["Bowler", "Inn", "Overs", "Wkts", "Runs", "Econ", "Maidens"]
             ]
-            st.dataframe(disp, width='stretch', hide_index=True)
+            render_dataframe(disp, econ_spec.empty_state_help)
         else:
-            st.info("No qualifying bowlers (min 50 balls).")
+            render_dataframe(pd.DataFrame(), econ_spec.empty_state_help)
 
     with col_fig:
         st.subheader("Best Figures (3+ wickets)")

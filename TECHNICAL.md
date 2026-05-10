@@ -1,211 +1,277 @@
-# Technical Documentation — IPL Analytics Platform
+# Technical Documentation - IPL Analytics Platform
 
-## Architecture
+## 1. Architecture
 
-The application follows a three-layer architecture:
+The app is a local-analytics stack:
 
+```text
+Raw CSV
+  -> 3-step preprocessing pipeline
+  -> processed parquet datasets
+  -> DuckDB views
+  -> Streamlit pages
+  -> Plotly charts / semantic result tables
 ```
-Raw CSV → [3-Stage Pipeline] → Parquet Files → [DuckDB Views] → [Streamlit Pages]
-```
 
-### Data Pipeline
+There is no separate backend API. DuckDB runs in-process inside the Streamlit app.
 
-The preprocessing pipeline (`Data/preprocessing/run_pipeline.py`) runs three steps sequentially:
+## 2. Preprocessing pipeline
 
-**Step 1 — `01_clean.py`** (Raw CSV → Cleaned Parquet)
-- Drops 8 constant/empty columns (64 → 56)
-- Standardizes team names using a 5-entry mapping (e.g., "Royal Challengers Bangalore" → "Royal Challengers Bengaluru")
-- Standardizes 59 venue name variants down to 37 unique venues
-- Parses win outcomes into structured columns (margin value, margin type)
-- Adds delivery numbering (delivery_number, legal_ball_number)
-- Classifies match stages (League, Qualifier 1, Qualifier 2, Eliminator, Final)
-- Validates all transformations with assertions
-- Output: `ball_by_ball_cleaned.parquet` (278,205 rows × 63 columns)
+Pipeline entry point: `Data\preprocessing\run_pipeline.py`
 
-**Step 2 — `02_derive_features.py`** (Cleaned → Feature-Enriched Parquet)
-- Adds `match_phase` — powerplay (overs 1-6), middle (7-15), death (16-20)
-- Adds ball outcome flags — `is_four`, `is_six`, `is_boundary`, `is_dot`
-- Computes dot ball sequences — `consecutive_dots_before`, `is_sequence_breaker`, `dot_sequence_outcome`
-- Builds partnership tracking — `partnership_id`, `partnership_runs`, `partnership_balls`
-- Calculates chase metrics for 2nd innings — `required_run_rate`, `current_run_rate`, `run_rate_pressure`
-- Assigns batting position buckets — top order (1-3), middle order (4-5), lower middle (6-7), tail (8-11)
-- Adds over-level stats — `is_maiden`, `over_runs`, `over_dots`, `over_boundaries`, `over_wickets`
-- Adds bowling spell tracking — `bowling_stint`, `spell_number`
-- Adds match context flags — `is_close_match`, `toss_winner_is_batting`, `is_super_over`
-- Output: `ball_by_ball.parquet` (278,205 rows × 90 columns, 27 new features)
+### Step 1 - `01_clean.py`
 
-**Step 3 — `03_build_aggregates.py`** (Feature Parquet → 15 Aggregate Parquets)
+- drops constant or empty raw columns
+- standardizes team names
+- canonicalizes venue names
+- parses result margins and stage information
+- adds delivery numbering fields
+- writes `ball_by_ball_cleaned.parquet`
 
-Produces these aggregate files from the enriched ball-by-ball data:
+Output after cleaning:
 
-| # | Output File | Rows | Description |
-|---|-------------|------|-------------|
-| 1 | match_summary.parquet | 1,169 | One row per match with scores, winner, margin, toss, venue |
-| 2 | player_season.parquet | 3,138 | Player-team-season mapping for roster lookup |
-| 3 | matchups.parquet | 29,533 | Batter vs bowler head-to-head aggregates |
-| 4 | venue_stats.parquet | 42 | Venue-level averages (scores, boundaries, bat-first win %) |
-| 5 | powerplay_stats.parquet | 2,365 | Per-innings powerplay runs, wickets, boundaries, run rate |
-| 6 | dot_sequences.parquet | 34 | Outcomes after N consecutive dot balls |
-| 7 | season_structure.parquet | 18 | Season metadata (dates, teams, venues, DLS matches) |
-| 8 | player_batting_match.parquet | 17,708 | Per-innings batting card (runs, balls, 4s, 6s, SR, position) |
-| 9 | player_bowling_match.parquet | 13,878 | Per-innings bowling figures (runs, balls, wickets, economy) |
-| 10 | partnerships.parquet | 15,696 | Partnership runs, balls, boundaries per batting pair per innings |
-| 11 | dismissal_patterns.parquet | 2,089 | Dismissal counts by type per player |
-| 12 | dismissal_by_phase.parquet | 3,446 | Dismissal counts by type, phase, and player |
-| 13 | team_season.parquet | 156 | Team wins, losses, and match counts per season |
-| 14 | points_table.parquet | 156 | IPL points table with NRR (mirrors team_season) |
+- `ball_by_ball_cleaned.parquet`: **278,205 rows x 63 columns**
 
-### Data Integrity
+### Step 2 - `02_derive_features.py`
 
-Aggregation functions include all deliveries (including no-balls) for batter run totals, fours, and sixes. Only the `balls` count uses `valid_ball` filtering because no-balls do not count as legal deliveries in cricket. This ensures:
-- 703 batters: zero mismatches between aggregated and raw ball-by-ball totals
-- 550 bowlers: zero mismatches between aggregated and raw ball-by-ball totals
+- adds match phase labels
+- adds dot, four, six, boundary and wicket helper flags
+- adds partnership tracking
+- adds chase pressure fields such as `current_run_rate` and `required_run_rate`
+- adds over-level fields such as `over_runs`, `over_dots`, `over_boundaries`, `over_wickets`, `is_maiden`
+- adds spell and context flags
 
----
+Output after feature engineering:
 
-## DuckDB Query Layer
+- `ball_by_ball.parquet`: **278,205 rows x 90 columns**
 
-The application uses DuckDB as an in-process analytical SQL engine. On startup, `src/db/connection.py` registers 15 DuckDB views that map directly to parquet files:
+### Step 3 - `03_build_aggregates.py`
 
-| View Name | Source Parquet | Row Count |
-|-----------|---------------|-----------|
-| `balls` | ball_by_ball.parquet | 278,205 |
-| `matches` | match_summary.parquet | 1,169 |
-| `player_season` | player_season.parquet | 3,138 |
-| `player_batting` | player_batting_match.parquet | 17,708 |
-| `player_bowling` | player_bowling_match.parquet | 13,878 |
-| `matchups` | matchups.parquet | 29,533 |
-| `venues` | venue_stats.parquet | 42 |
-| `partnerships` | partnerships.parquet | 15,696 |
-| `dot_sequences` | dot_sequences.parquet | 34 |
-| `powerplay` | powerplay_stats.parquet | 2,365 |
-| `season_meta` | season_structure.parquet | 18 |
-| `dismissals` | dismissal_patterns.parquet | 2,089 |
-| `dismissals_phase` | dismissal_by_phase.parquet | 3,446 |
-| `team_season` | team_season.parquet | 156 |
-| `points_table` | points_table.parquet | 156 |
+This stage produces the app-facing analytical datasets:
 
-All SQL queries across all 14 pages run against these views. DuckDB executes them directly on parquet files — no data loading into memory required.
+| Output file | Rows | Purpose |
+| --- | ---: | --- |
+| `match_summary.parquet` | 1,169 | One row per match |
+| `player_season.parquet` | 3,138 | Player-team-season roster mapping |
+| `matchups.parquet` | 29,533 | Batter vs bowler aggregates |
+| `venue_stats.parquet` | 42 | Venue scoring and result summaries |
+| `powerplay_stats.parquet` | 2,365 | Powerplay innings summaries |
+| `dot_sequences.parquet` | 34 | Outcomes after dot-ball streaks |
+| `season_structure.parquet` | 18 | Season-level metadata |
+| `player_batting_match.parquet` | 17,708 | Per-innings batting cards |
+| `player_bowling_match.parquet` | 13,878 | Per-innings bowling cards |
+| `partnerships.parquet` | 15,696 | Partnership-level summaries |
+| `dismissal_patterns.parquet` | 2,089 | Dismissal types by player |
+| `dismissal_by_phase.parquet` | 3,446 | Dismissal types by player and phase |
+| `team_season.parquet` | 156 | Team-by-season results |
+| `points_table.parquet` | 156 | Points table with NRR |
+| `team_match_results.parquet` | 2,338 | Team result row per match |
+| `over_summary.parquet` | 45,034 | Over-level innings summaries |
+| `innings_tags.parquet` | 17,708 | Innings-level tags for semantic filtering |
+| `player_season_metrics.parquet` | 3,137 | Player-season batting and bowling summary metrics |
 
----
+That is **18 app-facing aggregate parquet files**, plus the feature parquet `ball_by_ball.parquet`.
 
-## Dashboard Pages
+## 3. Data-integrity rules that matter
 
-### Page 1 — Home (`00_Home.py`)
-Hero stats (total matches, players, venues), IPL season timeline, latest season highlights.
+Several cricket-specific rules are enforced because the same mistakes were easy to make in multiple visuals:
 
-### Page 2 — Season Hub (`01_Season_Hub.py`)
-Complete season yearbook. Points table, top run scorers, top wicket takers, team performance breakdown for any selected season.
+- batting run totals use the correct batting fields, while bowling conceded runs use `runs_bowler`
+- wicket logic uses real dismissal semantics, not placeholder non-dismissal values
+- batting ball counts use legal-ball logic where required
+- milestone questions are resolved from ball-level progression, not final innings totals
+- chase visuals use stored target context where needed, including rain-affected matches
+- unsupported semantic questions are rejected instead of guessed
 
-### Page 3 — Leaderboards (`02_Leaderboards.py`)
-All-time batting rankings (runs, SR, average, centuries), bowling rankings (wickets, economy, SR), team rankings (win %).
+The codebase also keeps verified aggregate consistency checks for:
 
-### Page 4 — Player Profile (`03_Player_Profile.py`)
-Full career dossier for any player. Season-by-season breakdown, batting/bowling cards, venue performance, matchup data, dismissal patterns.
+- **703 batters** with zero mismatches between aggregate and ball-level batting totals
+- **550 bowlers** with zero mismatches between aggregate and ball-level bowling totals
 
-### Page 5 — Team Profile (`04_Team_Profile.py`)
-Franchise analytics. Season history, head-to-head records, top players, venue performance, toss analysis.
+## 4. DuckDB query layer
 
-### Page 6 — Venue Intelligence (`05_Venue_Intelligence.py`)
-Ground-specific analytics. Average scores, chase success rates, boundary frequency, phase-wise scoring, toss impact per venue.
+Source: `src\db\connection.py`
 
-### Page 7 — Head-to-Head (`06_Head_to_Head.py`)
-Batter vs bowler matchups with runs, balls, dismissals, strike rate. Team vs team historical records.
+On app startup the project registers **19 parquet-backed DuckDB views**:
 
-### Page 8 — Phase Analysis (`07_Phase_Analysis.py`)
-Deep-dive into powerplay (overs 1-6), middle overs (7-15), and death overs (16-20). Scoring rates, wicket frequency, boundary patterns by phase.
+| View | Source parquet | Rows |
+| --- | --- | ---: |
+| `balls` | `ball_by_ball.parquet` | 278,205 |
+| `matches` | `match_summary.parquet` | 1,169 |
+| `player_season` | `player_season.parquet` | 3,138 |
+| `player_batting` | `player_batting_match.parquet` | 17,708 |
+| `player_bowling` | `player_bowling_match.parquet` | 13,878 |
+| `team_match_results` | `team_match_results.parquet` | 2,338 |
+| `over_summary` | `over_summary.parquet` | 45,034 |
+| `innings_tags` | `innings_tags.parquet` | 17,708 |
+| `player_season_metrics` | `player_season_metrics.parquet` | 3,137 |
+| `matchups` | `matchups.parquet` | 29,533 |
+| `venues` | `venue_stats.parquet` | 42 |
+| `partnerships` | `partnerships.parquet` | 15,696 |
+| `dot_sequences` | `dot_sequences.parquet` | 34 |
+| `powerplay` | `powerplay_stats.parquet` | 2,365 |
+| `season_meta` | `season_structure.parquet` | 18 |
+| `dismissals` | `dismissal_patterns.parquet` | 2,089 |
+| `dismissals_phase` | `dismissal_by_phase.parquet` | 3,446 |
+| `team_season` | `team_season.parquet` | 156 |
+| `points_table` | `points_table.parquet` | 156 |
 
-### Page 9 — Pressure & Momentum (`08_Pressure_Momentum.py`)
-Four tabs: Dot Ball Pressure (cascade analysis, top dot ball bowlers and batters, phase-wise dot %), Chase Dynamics (success rates by target, best chase innings), Partnerships Under Pressure, Clutch Performances.
+Every page query and every semantic query runs against these views.
 
-### Page 10 — Trends & Evolution (`09_Trends_Evolution.py`)
-18-year evolution of IPL cricket. How scoring rates, boundary frequency, bowling economy, and other metrics have changed across seasons.
+## 5. Streamlit application surface
 
-### Page 11 — Records & Anomalies (`10_Records_Anomalies.py`)
-All IPL records — highest scores, best bowling figures, biggest wins, lowest totals, super over results, and statistical outliers.
+Navigation is defined in `app.py`. The current app has **15 pages**:
 
-### Page 12 — Match Center (`11_Match_Center.py`)
-Ball-by-ball match replay. Select any match to view the full innings progression, fall of wickets, scoring flow, and partnership timeline.
+1. `00_Home.py`
+2. `01_Season_Hub.py`
+3. `02_Leaderboards.py`
+4. `03_Player_Profile.py`
+5. `04_Team_Profile.py`
+6. `05_Venue_Intelligence.py`
+7. `06_Head_to_Head.py`
+8. `07_Phase_Analysis.py`
+9. `08_Pressure_Momentum.py`
+10. `09_Trends_Evolution.py`
+11. `10_Records_Anomalies.py`
+12. `11_Match_Center.py`
+13. `12_Tournament_Structure.py`
+14. `13_Explorer.py`
+15. `14_Ask_Anything.py`
 
-### Page 13 — Tournament Structure (`12_Tournament_Structure.py`)
-Season formats, playoff brackets, how the IPL structure has evolved over 18 seasons.
+### Explorer
 
-### Page 14 — Explorer (`13_Explorer.py`)
-Custom query builder with 9 entity types, 58 preset SQL queries across 11 categories, a user guide, and a data dictionary. Supports filtering by season, team, player, venue, match phase, and more.
+`pages\13_Explorer.py` now exposes:
 
----
+- query builder
+- 58 preset queries across 11 categories
+- semantic search tab
+- guide and data dictionary tabs
 
-## Tech Stack
+### Ask Anything
 
-| Component | Technology | Version | Purpose |
-|-----------|-----------|---------|---------|
-| Framework | Streamlit | >= 1.45.0 | Multi-page web application |
-| Charts | Plotly | >= 6.0.0 | Interactive visualizations |
-| Query Engine | DuckDB | >= 1.2.0 | In-process SQL on parquet files |
-| Data Format | Apache Parquet | via PyArrow >= 18.0.0 | Columnar compressed storage |
-| Data Processing | Pandas | >= 2.2.0 | DataFrame operations in pipeline |
-| Numerical | NumPy | >= 1.26.0 | Numerical computations |
-| Testing | pytest | >= 8.0.0 | 25 automated tests |
-| Language | Python | 3.11 | Runtime |
+`pages\14_Ask_Anything.py` is a dedicated deterministic semantic search page with:
 
----
+- supported example prompts
+- assumptions and warning text
+- generated SQL
+- result tables and charts
+- related follow-up prompts
 
-## Cricket Terminology Reference
+## 6. Deterministic semantic search
 
-| Term | Definition |
-|------|-----------|
-| Ball / Delivery | A single bowling action. 6 legal deliveries make 1 over. |
-| Over | A set of 6 legal deliveries bowled by one bowler. A T20 innings has 20 overs max. |
-| Runs | Points scored. Batter can score 0-6 runs per delivery by running or hitting boundaries. |
-| Four (4) | Ball reaches the boundary rope along the ground. Scores 4 runs. |
-| Six (6) | Ball clears the boundary rope without bouncing. Scores 6 runs. |
-| Boundary | Either a four or a six. |
-| Dot Ball | A delivery where the batter scores 0 runs. Builds pressure on the batting side. |
-| Wicket | A batter getting out (dismissed). 10 wickets end an innings. |
-| Strike Rate (SR) | Batting: (Runs / Balls Faced) x 100. Higher means more aggressive scoring. |
-| Batting Average | Runs / Times Dismissed. Higher means more consistent run-scoring. |
-| Economy Rate | Bowling: (Runs Conceded / Balls Bowled) x 6. Lower means more restrictive. |
-| Bowling Strike Rate | Balls Bowled / Wickets Taken. Lower means more frequent wicket-taking. |
-| No-Ball | An illegal delivery (front foot overstepping). Awards 1 extra run + free hit. Batter's runs still count. Does not count as a legal delivery. |
-| Wide | A delivery too far from the batter to hit. Awards 1 extra run. Does not count as a legal delivery. |
-| Maiden Over | An over where 0 runs are conceded off legal deliveries. |
-| Powerplay | Overs 1-6. Fielding restrictions: only 2 fielders outside the 30-yard circle. Encourages aggressive batting. |
-| Middle Overs | Overs 7-15. Up to 5 fielders outside the circle. Consolidation phase. |
-| Death Overs | Overs 16-20. Final phase where batters attempt to maximize scoring. |
-| Duck | A batter dismissed for 0 runs. |
-| Golden Duck | A batter dismissed on the first ball faced (0 runs, 1 ball). |
-| Orange Cap | Award for the highest run scorer in an IPL season. |
-| Purple Cap | Award for the highest wicket taker in an IPL season. |
-| Net Run Rate (NRR) | (Runs Scored / Overs Faced) - (Runs Conceded / Overs Bowled). Tiebreaker for teams on equal points. |
-| Super Over | Tiebreaker when match scores are level. Each team bats 1 over (6 balls). |
-| DLS Method | Duckworth-Lewis-Stern. Mathematical formula to set revised targets in rain-affected matches. |
-| Innings | One team's turn to bat. A T20 match has 2 innings (one per team). |
-| Chase | The 2nd innings where the batting team tries to surpass the 1st innings score. |
-| Target | The score the chasing team needs to win (1st innings score + 1). |
-| Required Run Rate (RRR) | Runs needed / Overs remaining. Used to gauge chase difficulty. |
-| Run Out | A batter dismissed by the fielding side hitting the stumps while the batter is out of the crease. |
-| Caught | A batter dismissed when a fielder catches the ball after the batter hits it, before it bounces. |
-| Bowled | A batter dismissed when the ball hits the stumps directly from the bowler. |
-| LBW | Leg Before Wicket. Batter dismissed when the ball would have hit the stumps but hit the batter's leg instead. |
-| Stumped | A batter dismissed when the wicketkeeper removes the bails while the batter is out of the crease. |
-| Qualifier | Playoff match where the winner advances. IPL uses Qualifier 1, Qualifier 2, and Eliminator. |
-| Eliminator | Playoff match where the loser is eliminated from the tournament. |
+Semantic code lives in `src\semantic\`.
 
----
+Key files:
 
-## Testing
+- `planner.py` - maps supported natural-language prompts to a normalized query plan
+- `compiler.py` - compiles the plan into whitelisted SQL
+- `service.py` - executes the plan/compile/query/explain flow
+- `explain.py` - human-readable assumptions and warnings
+- `examples.py` - shipped supported example prompts
 
-25 automated tests in `tests/test_project.py` covering:
-- Parquet file existence and schema validation
-- Data integrity assertions (no null match IDs, valid seasons, etc.)
-- Constants validation (team colors, phase ranges, season ordering)
-- Import checks for all source modules
-- Pipeline output verification
+### What it is
 
-Run tests: `python -m pytest tests/ --tb=short -q`
+This is **not** free-form text-to-SQL.
 
----
+The engine is intentionally narrow:
 
-## Data Source
+1. detect a supported query family
+2. normalize filters and thresholds
+3. compile only approved SQL patterns
+4. execute on DuckDB views
+5. explain assumptions in the UI
 
-IPL Ball-by-Ball Dataset 2008-2025 from Kaggle by [chaitu20](https://www.kaggle.com/datasets/chaitu20/ipl-dataset2008-2025). Contains 278,205 delivery records across 1,169 matches.
+### Current shipped coverage
+
+`src\semantic\examples.py` contains **40 supported example prompts**.
+
+Supported families include:
+
+- hat-tricks and other sequence events
+- wickets in an over, maidens, wicket maidens, perfect overs
+- wicket, maiden, dot-ball, boundary and scoring-shot streaks
+- ducks, golden ducks and innings-by-balls questions
+- dismissal-type families
+- Orange Cap / Purple Cap history
+- chase records, near misses and threshold-based season consistency
+
+### Accuracy behavior
+
+Recent hardening in the semantic layer includes:
+
+- season filtering on streak leaderboards is applied after streak formation so cross-season streaks are not fragmented incorrectly
+- year phrases such as `2024 for V Kohli` are not misread as `4-fors`
+- unsupported questions are surfaced as unsupported instead of forced through a weak interpretation
+
+## 7. Per-visual control framework
+
+The configurable-visual system is built from:
+
+- `src\utils\control_schema.py`
+- `src\utils\control_renderer.py`
+- `src\utils\visual_specs.py`
+- `src\visualizations\card_renderer.py`
+
+### What it does
+
+Each visual can declare a local `VisualSpec` and render only the controls that make sense for that visual:
+
+- season range
+- result limit
+- minimum qualification thresholds
+- innings selector
+- local team or category selectors
+- boolean toggles where needed
+
+### Where it is used
+
+The local-control rollout now covers the main analytics pages:
+
+- Home
+- Season Hub
+- Leaderboards
+- Player Profile
+- Team Profile
+- Venue Intelligence
+- Head-to-Head
+- Phase Analysis
+- Pressure & Momentum
+- Trends & Evolution
+- Records & Anomalies
+- Tournament Structure
+
+`Match Center` intentionally remains context-driven because arbitrary local control overrides would distort match-specific interpretation.
+
+## 8. Tech stack
+
+| Component | Technology | Purpose |
+| --- | --- | --- |
+| UI | Streamlit | Multi-page web app |
+| Charts | Plotly | Interactive charts |
+| Query engine | DuckDB | Analytical SQL on parquet |
+| Storage | Parquet / PyArrow | Columnar datasets |
+| Processing | Pandas / NumPy | Pipeline and transformations |
+| Testing | pytest | Automated validation |
+| Language | Python 3.11 | Runtime |
+
+## 9. Testing
+
+Test file: `tests\test_project.py`
+
+Current repository result:
+
+- `python -m pytest tests\ --tb=short -q`
+- **52 passed**
+
+Coverage in the suite includes:
+
+- processed file existence
+- schema and row-level sanity checks
+- constants and helper validation
+- import checks
+- pipeline output expectations
+- semantic planner/compiler regression checks
+
+## 10. Data source
+
+The source dataset is the public IPL ball-by-ball dataset from Kaggle by **chaitu20**.

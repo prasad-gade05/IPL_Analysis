@@ -11,6 +11,10 @@ from src.visualizations.theme import (apply_ipl_style, styled_bar, styled_pie,
                                        get_team_color, big_number_style, IPL_COLORWAY)
 from src.utils.constants import TEAM_COLORS, ALL_SEASONS
 from src.utils.formatters import format_number, format_strike_rate, format_average
+from src.utils.control_renderer import render_visual_controls, active_control_chips
+from src.utils.control_schema import VisualSpec
+from src.utils.visual_specs import limit_control
+from src.visualizations.card_renderer import render_active_filters
 
 st.markdown(big_number_style(), unsafe_allow_html=True)
 st.title("Head-to-Head")
@@ -405,8 +409,11 @@ else:
         perf_left, perf_right = st.columns(2)
 
         with perf_left:
-            st.markdown("**Top Run Scorers**")
-            top_bat = load_top_run_scorers(team_a, team_b)
+            scorer_spec = _h2h_top_scorers_spec()
+            scorer_controls = render_visual_controls(scorer_spec)
+            render_active_filters(active_control_chips(scorer_spec, scorer_controls))
+            scorer_limit = scorer_controls.get("limit", 10)
+            top_bat = load_top_run_scorers(team_a, team_b, scorer_limit)
             if not top_bat.empty:
                 top_bat_display = top_bat.rename(columns={
                     "player": "Player", "team": "Team", "matches": "Mat",
@@ -418,8 +425,11 @@ else:
                 st.info("No batting data available.")
 
         with perf_right:
-            st.markdown("**Top Wicket Takers**")
-            top_bowl = load_top_wicket_takers(team_a, team_b)
+            wkt_spec = _h2h_top_wicket_takers_spec()
+            wkt_controls = render_visual_controls(wkt_spec)
+            render_active_filters(active_control_chips(wkt_spec, wkt_controls))
+            wkt_limit = wkt_controls.get("limit", 10)
+            top_bowl = load_top_wicket_takers(team_a, team_b, wkt_limit)
             if not top_bowl.empty:
                 top_bowl_display = top_bowl.rename(columns={
                     "player": "Player", "team": "Team", "matches": "Mat",

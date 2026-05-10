@@ -9,6 +9,7 @@ import streamlit as st
 import plotly.express as px
 import pandas as pd
 from src.db.connection import query
+from src.semantic import SUPPORTED_EXAMPLES, run_semantic_query
 from src.visualizations.theme import apply_ipl_style, IPL_COLORWAY, big_number_style
 from src.utils.constants import ALL_SEASONS
 from src.utils.formatters import format_number
@@ -1372,12 +1373,91 @@ st.title("Explorer")
 st.caption("The ultimate IPL analytics power-tool — 40+ one-click presets, 9 entity types, deep filters, and instant visualizations.")
 
 # ── Navigation tabs ─────────────────────────────────────────────────────
-main_tab_builder, main_tab_presets, main_tab_guide, main_tab_dict = st.tabs([
-    "Query Builder", "Quick Presets", "User Guide", "Data Dictionary",
+main_tab_semantic, main_tab_builder, main_tab_presets, main_tab_guide, main_tab_dict = st.tabs([
+    "Semantic Search", "Query Builder", "Quick Presets", "User Guide", "Data Dictionary",
 ])
 
 # ═══════════════════════════════════════════════════════════════════════
-#  TAB 1: USER GUIDE
+#  TAB 1: SEMANTIC SEARCH
+# ═══════════════════════════════════════════════════════════════════════
+with main_tab_semantic:
+    st.subheader("Deterministic Semantic Search")
+    st.caption("Ask a supported cricket-stat question. The engine shows how it interpreted the prompt, which filters it applied, and the exact SQL it ran.")
+
+    if "explorer_semantic_question" not in st.session_state:
+        st.session_state["explorer_semantic_question"] = SUPPORTED_EXAMPLES[0]["prompt"]
+
+    example_prompt = st.selectbox(
+        "Supported examples",
+        [item["prompt"] for item in SUPPORTED_EXAMPLES],
+        key="explorer_semantic_example",
+    )
+
+    if st.button("Use semantic example", key="explorer_use_semantic_example", width='stretch'):
+        st.session_state["explorer_semantic_question"] = example_prompt
+
+    semantic_question = st.text_area(
+        "Ask a supported IPL stats question",
+        key="explorer_semantic_question",
+        height=100,
+        placeholder="Example: Which teams have the longest winning streaks?",
+    )
+
+    if st.button("Run semantic search", key="explorer_run_semantic", type="primary", width='stretch') and semantic_question.strip():
+        semantic_result = run_semantic_query(semantic_question.strip())
+        semantic_explanation = semantic_result["explanation"]
+
+        if not semantic_result["supported"]:
+            st.warning(semantic_explanation["warnings"][0] if semantic_explanation["warnings"] else "This question is not supported yet.")
+        else:
+            semantic_plan = semantic_result["plan"]
+            semantic_df = semantic_result["data"]
+
+            st.markdown(f"**Question understood as:** {semantic_explanation['question_understood_as']}")
+            st.markdown(f"**Metric:** {semantic_explanation['metric']}")
+            st.markdown(f"**Grouping:** {semantic_explanation['grouping']}")
+
+            if semantic_explanation["filters"]:
+                st.caption("Active filters: " + " · ".join(f"`{item}`" for item in semantic_explanation["filters"]))
+            if semantic_explanation["sample_constraints"]:
+                st.caption("Sample constraints: " + " · ".join(semantic_explanation["sample_constraints"]))
+
+            for assumption in semantic_explanation["assumptions"]:
+                st.info(assumption)
+            for warning in semantic_explanation["warnings"]:
+                st.warning(warning)
+
+            if semantic_plan.chart_type == "line" and not semantic_df.empty and semantic_plan.chart_x in semantic_df.columns and semantic_plan.chart_y in semantic_df.columns:
+                fig = px.line(semantic_df, x=semantic_plan.chart_x, y=semantic_plan.chart_y, markers=True, title=semantic_plan.title)
+                fig = apply_ipl_style(fig, height=420, show_legend=False)
+                st.plotly_chart(fig, width='stretch')
+            elif not semantic_df.empty and semantic_plan.chart_x in semantic_df.columns and semantic_plan.chart_y in semantic_df.columns:
+                fig = px.bar(
+                    semantic_df.sort_values(semantic_plan.chart_y, ascending=True),
+                    x=semantic_plan.chart_y,
+                    y=semantic_plan.chart_x,
+                    orientation="h",
+                    title=semantic_plan.title,
+                )
+                fig = apply_ipl_style(fig, height=max(400, len(semantic_df) * 28), show_legend=False)
+                st.plotly_chart(fig, width='stretch')
+
+            if semantic_df.empty:
+                st.info("The semantic query is supported, but the selected filters returned no rows.")
+            else:
+                st.dataframe(semantic_df, width='stretch', hide_index=True)
+
+            with st.expander("Generated SQL", expanded=False):
+                st.code(semantic_result["sql"] or "", language="sql")
+
+            if semantic_explanation["related_prompts"]:
+                st.markdown("**Related prompts**")
+                for prompt in semantic_explanation["related_prompts"]:
+                    st.markdown(f"- {prompt}")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  TAB 2: USER GUIDE
 # ═══════════════════════════════════════════════════════════════════════
 with main_tab_guide:
     st.subheader("How to Use the Explorer")
@@ -1509,7 +1589,7 @@ Here are real examples to try in the Query Builder:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  TAB 2: QUICK PRESETS
+#  TAB 3: QUICK PRESETS
 # ═══════════════════════════════════════════════════════════════════════
 with main_tab_presets:
     st.subheader("Quick Presets")
@@ -1585,7 +1665,7 @@ with main_tab_presets:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  TAB 3: CUSTOM QUERY BUILDER
+#  TAB 4: CUSTOM QUERY BUILDER
 # ═══════════════════════════════════════════════════════════════════════
 with main_tab_builder:
     st.subheader("Custom Query Builder")

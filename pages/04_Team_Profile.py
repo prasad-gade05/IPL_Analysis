@@ -24,6 +24,10 @@ from src.utils.formatters import (
     format_economy,
     format_average,
 )
+from src.utils.control_renderer import render_visual_controls, active_control_chips
+from src.utils.control_schema import VisualSpec
+from src.utils.visual_specs import limit_control
+from src.visualizations.card_renderer import render_active_filters
 
 # ---------------------------------------------------------------------------
 # Cached query helpers
@@ -151,8 +155,7 @@ def get_avg_team_score_by_season(team):
             SELECT season, team2_score AS score FROM matches
               WHERE team2 = ? AND team2_score IS NOT NULL
         )
-        GROUP BY season
-        ORDER BY season
+        GROUP BY season ORDER BY season
         """,
         [team, team],
     )
@@ -160,8 +163,7 @@ def get_avg_team_score_by_season(team):
 
 @st.cache_data(ttl=3600)
 def get_league_avg_score_by_season():
-    return query(
-        """
+    return query("""
         SELECT season, ROUND(AVG(score), 1) AS avg_score
         FROM (
             SELECT season, team1_score AS score FROM matches
@@ -170,9 +172,157 @@ def get_league_avg_score_by_season():
             SELECT season, team2_score AS score FROM matches
               WHERE team2_score IS NOT NULL
         )
-        GROUP BY season
-        ORDER BY season
+        GROUP BY season ORDER BY season
+    """)
+
+
+@st.cache_data(ttl=3600)
+def get_top_run_scorers(team, limit=10):
+    return query(
         """
+        SELECT
+            batter,
+            COUNT(DISTINCT match_id) AS matches,
+            COUNT(*) AS innings,
+            SUM(runs) AS runs,
+            ROUND(SUM(runs) * 100.0 / NULLIF(SUM(balls), 0), 1) AS strike_rate,
+            MAX(runs) AS highest
+        FROM player_batting
+        WHERE batting_team = ?
+        GROUP BY batter
+        ORDER BY runs DESC
+        LIMIT ?
+        """,
+        [team, limit],
+    )
+
+
+@st.cache_data(ttl=3600)
+def get_highest_team_totals(team, limit=10):
+    return query(
+        """
+        SELECT match_id, season, venue,
+               CASE WHEN team1 = ? THEN team2 ELSE team1 END AS opponent,
+               CASE WHEN team1 = ? THEN team1_score ELSE team2_score END AS score,
+               CASE WHEN team1 = ? THEN team1_wickets ELSE team2_wickets END AS wickets
+        FROM matches
+        WHERE (team1 = ? OR team2 = ?)
+        ORDER BY score DESC
+        LIMIT ?
+        """,
+        [team, team, team, team, team, limit],
+    )
+
+
+@st.cache_data(ttl=3600)
+def get_lowest_team_totals(team, limit=10):
+    return query(
+        """
+        SELECT match_id, season, venue,
+               CASE WHEN team1 = ? THEN team2 ELSE team1 END AS opponent,
+               CASE WHEN team1 = ? THEN team1_score ELSE team2_score END AS score,
+               CASE WHEN team1 = ? THEN team1_wickets ELSE team2_wickets END AS wickets,
+               match_won_by
+        FROM matches
+        WHERE (team1 = ? OR team2 = ?)
+          AND (CASE WHEN team1 = ? THEN team1_score ELSE team2_score END) IS NOT NULL
+        ORDER BY score ASC
+        LIMIT ?
+        """,
+        [team, team, team, team, team, team, limit],
+    )
+
+
+# ---- Bowling helpers ----
+
+
+@st.cache_data(ttl=3600)
+def get_avg_conceded_by_season(team):
+    return query(
+        """
+        SELECT season, ROUND(AVG(score), 1) AS avg_conceded
+        FROM (
+            SELECT season, team2_score AS score FROM matches
+              WHERE team1 = ? AND team2_score IS NOT NULL
+            UNION ALL
+            SELECT season, team1_score AS score FROM matches
+              WHERE team2 = ? AND team1_score IS NOT NULL
+        )
+        GROUP BY season ORDER BY season
+        """,
+        [team, team],
+    )
+
+
+@st.cache_data(ttl=3600)
+def get_top_wicket_takers(team, limit=10):
+    return query(
+        """
+        SELECT
+            bowler,
+            COUNT(DISTINCT match_id) AS matches,
+            SUM(wickets) AS wickets,
+            SUM(runs_conceded) AS runs_conceded,
+            ROUND(SUM(runs_conceded) * 6.0 / NULLIF(SUM(balls_bowled), 0), 2) AS economy
+        FROM player_bowling
+        WHERE bowling_team = ?
+        GROUP BY bowler
+        ORDER BY wickets DESC
+        LIMIT ?
+        """,
+        [team, limit],
+    )
+
+
+@st.cache_data(ttl=3600)
+def get_best_bowling_figures(team, limit=10):
+    return query(
+        """
+        SELECT pb.bowler, pb.wickets, pb.runs_conceded,
+               pb.balls_bowled, pb.economy, pb.season,
+               CASE WHEN m.team1 = pb.bowling_team
+                    THEN m.team2 ELSE m.team1
+               END AS vs_team
+        FROM player_bowling pb
+        JOIN matches m ON pb.match_id = m.match_id
+        WHERE pb.bowling_team = ?
+        ORDER BY pb.wickets DESC, pb.runs_conceded ASC
+        LIMIT ?
+        """,
+        [team, limit],
+    )
+
+
+# ---- H2H helpers ----
+
+
+@st.cache_data(ttl=3600)
+def get_head_to_head(team):
+    return query(
+        """
+        SELECT opponent                           AS vs_team,
+               COUNT(*)                            AS played,
+               SUM(CASE WHEN match_won_by = ?
+                        THEN 1 ELSE 0 END)         AS won,
+               SUM(CASE WHEN match_won_by IS NOT NULL
+                             AND match_won_by != ?
+                        THEN 1 ELSE 0 END)         AS lost,
+               SUM(CASE WHEN match_won_by IS NULL
+                        THEN 1 ELSE 0 END)         AS nr,
+               ROUND(SUM(CASE WHEN match_won_by = ?
+                              THEN 1 ELSE 0 END) * 100.0
+                     / NULLIF(COUNT(*), 0), 1)     AS win_pct
+        FROM (
+            SELECT CASE WHEN team1 = ? THEN team2
+                        ELSE team1 END AS opponent,
+                   match_won_by
+            FROM matches
+            WHERE team1 = ? OR team2 = ?
+        )
+        GROUP BY opponent
+        ORDER BY played DESC
+        """,
+        [team, team, team, team, team, team],
     )
 
 
@@ -817,8 +967,12 @@ with tab_batting:
 
     # ---- Batters detail table ----
     if not batters_df.empty:
-        st.subheader("Top Run Scorers — Detail")
-        bat_display = batters_df.rename(
+        bat_spec = _top_run_scorers_spec()
+        bat_controls = render_visual_controls(bat_spec)
+        render_active_filters(active_control_chips(bat_spec, bat_controls))
+        bat_limit = bat_controls.get("limit", 10)
+        batters_df_limited = get_top_run_scorers(selected_team, bat_limit)
+        bat_display = batters_df_limited.rename(
             columns={
                 "batter": "Batter",
                 "total_runs": "Runs",
@@ -846,8 +1000,11 @@ with tab_batting:
     left, right = st.columns(2)
 
     with left:
-        st.subheader("Highest Team Totals")
-        high_df = get_highest_team_totals(selected_team)
+        high_spec = _highest_totals_spec()
+        high_controls = render_visual_controls(high_spec)
+        render_active_filters(active_control_chips(high_spec, high_controls))
+        high_limit = high_controls.get("limit", 10)
+        high_df = get_highest_team_totals(selected_team, high_limit)
         if not high_df.empty:
             high_display = high_df.rename(
                 columns={
@@ -862,8 +1019,11 @@ with tab_batting:
             st.info("No data available.")
 
     with right:
-        st.subheader("Lowest Team Totals")
-        low_df = get_lowest_team_totals(selected_team)
+        low_spec = _lowest_totals_spec()
+        low_controls = render_visual_controls(low_spec)
+        render_active_filters(active_control_chips(low_spec, low_controls))
+        low_limit = low_controls.get("limit", 10)
+        low_df = get_lowest_team_totals(selected_team, low_limit)
         if not low_df.empty:
             low_display = low_df.rename(
                 columns={
@@ -919,8 +1079,12 @@ with tab_bowling:
 
     # ---- Bowlers detail table ----
     if not bowlers_df.empty:
-        st.subheader("Top Wicket Takers — Detail")
-        bowl_display = bowlers_df.rename(
+        bowl_spec = _top_wicket_takers_spec()
+        bowl_controls = render_visual_controls(bowl_spec)
+        render_active_filters(active_control_chips(bowl_spec, bowl_controls))
+        bowl_limit = bowl_controls.get("limit", 10)
+        bowlers_df_limited = get_top_wicket_takers(selected_team, bowl_limit)
+        bowl_display = bowlers_df_limited.rename(
             columns={
                 "bowler": "Bowler",
                 "total_wickets": "Wickets",
@@ -942,8 +1106,11 @@ with tab_bowling:
     st.divider()
 
     # ---- Best bowling figures ----
-    st.subheader("Best Bowling Figures")
-    figures_df = get_best_bowling_figures(selected_team)
+    bowl_fig_spec = _best_bowling_spec()
+    bowl_fig_controls = render_visual_controls(bowl_fig_spec)
+    render_active_filters(active_control_chips(bowl_fig_spec, bowl_fig_controls))
+    bowl_fig_limit = bowl_fig_controls.get("limit", 10)
+    figures_df = get_best_bowling_figures(selected_team, bowl_fig_limit)
     if not figures_df.empty:
         fig_display = figures_df.copy()
         fig_display["figures"] = (

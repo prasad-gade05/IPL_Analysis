@@ -2,16 +2,36 @@
 
 **Live App:** https://analytics-ipl.streamlit.app/
 
-> **Note:** This app is hosted on Streamlit's free tier. If you see a screen saying _"This app has gone to sleep"_, it's not broken — just click the button to wake it up. Free hosting sleeps inactive apps to save resources for the open-source community. It'll be back in ~30 seconds!
+> **Note:** The app is hosted on Streamlit's free tier. If it says the app is sleeping, wake it and wait a few seconds.
 
-> **18 Seasons | 1,169 Matches | 703 Players | 37 Venues**
+> **18 Seasons | 1,169 Matches | 15 Pages | 19 DuckDB Views**
 
-A comprehensive, interactive analytics dashboard for Indian Premier League data (2008–2025),
-built with **Streamlit + DuckDB + Parquet + Plotly**.
+An IPL analytics app built with **Streamlit + DuckDB + Parquet + Plotly** over ball-by-ball data from 2008-2025.
 
-For detailed technical documentation (architecture, data pipeline, schema, cricket glossary), see **[TECHNICAL.md](TECHNICAL.md)**.
+For the architecture and pipeline details, see **[TECHNICAL.md](TECHNICAL.md)**.
 
-## Quick Start
+## What is implemented
+
+- **15 Streamlit pages**, including `Explorer` and `Ask Anything`
+- **Deterministic semantic search** in both `pages\14_Ask_Anything.py` and the semantic tab inside `pages\13_Explorer.py`
+- **40 shipped semantic example prompts** backed by whitelisted planning and SQL compilation, not free-form text-to-SQL
+- **58 Explorer presets across 11 categories**
+- **Schema-driven per-visual controls** rolled out across the main analytics pages where local filtering preserves the meaning of the visual
+- **19 parquet-backed DuckDB views**, including helper views added for semantic queries: `team_match_results`, `over_summary`, `innings_tags`, and `player_season_metrics`
+- **52 pytest checks**
+
+## Accuracy model
+
+This project is intentionally conservative about statistics:
+
+- supported semantic questions are mapped to known query families
+- SQL is compiled from whitelisted patterns
+- unsupported questions are rejected clearly instead of guessed
+- result pages show assumptions, active filters, and generated SQL
+
+The app favors explicit limits over plausible-but-unreliable answers.
+
+## Quick start
 
 ### Prerequisites
 
@@ -34,128 +54,118 @@ pip install -r requirements.txt
 
 # 4. Place raw data
 # Download IPL.csv from Kaggle and place it at:
-#   data/raw/ipl_ball_by_ball.csv
+#   Data\raw\ipl_ball_by_ball.csv
 
 # 5. Run preprocessing pipeline
-python data/preprocessing/run_pipeline.py
+python Data\preprocessing\run_pipeline.py
 
 # 6. Launch the app
 streamlit run app.py
 ```
 
-## Project Structure
+## Project structure
 
-```
+```text
 IPL_Analysis/
-├── app.py                          # Main Streamlit entry point
-├── requirements.txt                # Python dependencies
-├── runtime.txt                     # Python version for Streamlit Cloud
-├── .streamlit/
-│   └── config.toml                 # Theme & Streamlit configuration
-├── data/
-│   ├── raw/                        # Original CSV (git-ignored)
-│   │   └── ipl_ball_by_ball.csv
-│   ├── processed/                  # Parquet files (committed)
-│   │   ├── ball_by_ball.parquet
-│   │   ├── match_summary.parquet
-│   │   ├── player_season.parquet
-│   │   ├── player_batting_match.parquet
-│   │   ├── player_bowling_match.parquet
-│   │   ├── matchups.parquet
-│   │   ├── venue_stats.parquet
-│   │   ├── partnerships.parquet
-│   │   ├── dot_sequences.parquet
-│   │   ├── powerplay_stats.parquet
-│   │   ├── season_structure.parquet
-│   │   ├── dismissal_patterns.parquet
-│   │   ├── team_season.parquet
-│   │   └── points_table.parquet
-│   └── preprocessing/
-│       ├── run_pipeline.py         # Pipeline orchestrator
-│       ├── 01_clean.py             # Data cleaning
-│       ├── 02_derive_features.py   # Feature engineering
-│       └── 03_build_aggregates.py  # Pre-computed aggregates
-├── src/
-│   ├── db/
-│   │   ├── connection.py           # DuckDB singleton + parquet views
-│   │   └── queries/
-│   │       ├── player_queries.py
-│   │       ├── team_queries.py
-│   │       ├── matchup_queries.py
-│   │       ├── venue_queries.py
-│   │       ├── pressure_queries.py
-│   │       └── season_queries.py
-│   ├── visualizations/
-│   │   └── theme.py                # Plotly theme + team colors
-│   └── utils/
-│       ├── constants.py            # Team colors, phases, mappings
-│       ├── filters.py              # Reusable Streamlit filter widgets
-│       └── formatters.py           # Number/text formatting
-├── pages/                          # Streamlit multi-page app pages
-│   ├── 00_Home.py
-│   ├── 01_Season_Hub.py
-│   ├── 02_Leaderboards.py
-│   ├── 03_Player_Profile.py
-│   ├── 04_Team_Profile.py
-│   ├── 05_Venue_Intelligence.py
-│   ├── 06_Head_to_Head.py
-│   ├── 07_Phase_Analysis.py
-│   ├── 08_Pressure_Momentum.py
-│   ├── 09_Trends_Evolution.py
-│   ├── 10_Records_Anomalies.py
-│   ├── 11_Match_Center.py
-│   ├── 12_Tournament_Structure.py
-│   └── 13_Explorer.py
-├── tests/
-│   └── test_project.py
-└── AI_Instructions/                # Architecture docs (git-ignored)
-    ├── initial_context.txt
-    ├── initial_eda.txt
-    ├── structure.txt
-    ├── derived_calculations.yaml
-    └── testing_and_data_integrity.yaml
+|- app.py
+|- README.md
+|- TECHNICAL.md
+|- Data/
+|  |- raw/
+|  |  \- ipl_ball_by_ball.csv
+|  |- processed/
+|  |  |- ball_by_ball.parquet
+|  |  |- match_summary.parquet
+|  |  |- player_season.parquet
+|  |  |- player_batting_match.parquet
+|  |  |- player_bowling_match.parquet
+|  |  |- matchups.parquet
+|  |  |- venue_stats.parquet
+|  |  |- partnerships.parquet
+|  |  |- dot_sequences.parquet
+|  |  |- powerplay_stats.parquet
+|  |  |- season_structure.parquet
+|  |  |- dismissal_patterns.parquet
+|  |  |- dismissal_by_phase.parquet
+|  |  |- team_season.parquet
+|  |  |- points_table.parquet
+|  |  |- team_match_results.parquet
+|  |  |- over_summary.parquet
+|  |  |- innings_tags.parquet
+|  |  \- player_season_metrics.parquet
+|  \- preprocessing/
+|     |- run_pipeline.py
+|     |- 01_clean.py
+|     |- 02_derive_features.py
+|     \- 03_build_aggregates.py
+|- src/
+|  |- db/
+|  |- semantic/
+|  |- utils/
+|  \- visualizations/
+|- pages/
+|  |- 00_Home.py
+|  |- 01_Season_Hub.py
+|  |- 02_Leaderboards.py
+|  |- 03_Player_Profile.py
+|  |- 04_Team_Profile.py
+|  |- 05_Venue_Intelligence.py
+|  |- 06_Head_to_Head.py
+|  |- 07_Phase_Analysis.py
+|  |- 08_Pressure_Momentum.py
+|  |- 09_Trends_Evolution.py
+|  |- 10_Records_Anomalies.py
+|  |- 11_Match_Center.py
+|  |- 12_Tournament_Structure.py
+|  |- 13_Explorer.py
+|  \- 14_Ask_Anything.py
+\- tests/
+   \- test_project.py
 ```
 
-## Tech Stack
+## Dashboard pages
 
-| Component    | Technology                            |
-| ------------ | ------------------------------------- |
-| Frontend     | Streamlit (multi-page app)            |
-| Charts       | Plotly (interactive)                  |
-| Query Engine | DuckDB (in-process analytical SQL)    |
-| Data Storage | Apache Parquet (columnar, compressed) |
-| Hosting      | Streamlit Community Cloud (free)      |
-| Language     | 100% Python                           |
+1. **Home** - landing page, all-time leaders, timeline, recent season highlights
+2. **Season Hub** - one-season yearbook with points table and leaders
+3. **Leaderboards** - all-time batting, bowling, team, all-round and misc rankings
+4. **Player Profile** - career summary, season splits, venue/opposition/matchup views
+5. **Team Profile** - franchise history, top performers, season and venue views
+6. **Venue Intelligence** - venue scoring patterns, chase behavior, top performers
+7. **Head-to-Head** - batter vs bowler and team vs team comparisons
+8. **Phase Analysis** - powerplay, middle and death-over analytics
+9. **Pressure & Momentum** - dot pressure, chase dynamics, clutch contexts
+10. **Trends & Evolution** - season-over-season IPL shifts
+11. **Records & Anomalies** - high-end and low-end extremes, milestone records
+12. **Match Center** - match replay style scorecards and progression views
+13. **Tournament Structure** - season formats, points tables, bracket comparisons
+14. **Explorer** - query builder, presets, data dictionary, semantic search tab
+15. **Ask Anything** - deterministic semantic stats search with SQL and assumptions
 
-## Dashboard Pages (14 total)
+## Semantic search coverage
 
-1. **Home** — Hero stats, IPL timeline, latest season highlights
-2. **Season Hub** — Complete season yearbook with points table
-3. **Leaderboards** — All-time batting, bowling, team rankings
-4. **Player Profile** — Complete career dossier for any player
-5. **Team Profile** — Franchise analytics and history
-6. **Venue Intelligence** — Ground-specific batting/bowling insights
-7. **Head-to-Head** — Batter vs Bowler, Team vs Team
-8. **Phase Analysis** — Powerplay/Middle/Death deep-dives
-9. **Pressure & Momentum** — Dot ball cascades, chase dynamics
-10. **Trends & Evolution** — 18-year evolution of IPL cricket
-11. **Records & Anomalies** — Every IPL record and outlier
-12. **Match Center** — Ball-by-ball match replay
-13. **Tournament Structure** — Season formats and brackets
-14. **Explorer** — Custom query builder with 58 presets
+The semantic layer is limited to implemented query families. Current shipped examples cover prompts around:
 
-## Deployment (Streamlit Cloud)
+- hat-tricks, wickets in an over, maidens, wicket maidens, perfect overs
+- wicket, maiden, dot-ball, boundary, and scoring-shot streaks
+- ducks, golden ducks, balls taken in an innings
+- dismissal-type questions
+- Orange Cap / Purple Cap history
+- chase records, near misses, threshold and season consistency questions
 
-1. Push to GitHub
-2. Go to [share.streamlit.io](https://share.streamlit.io)
-3. Connect your GitHub repo
-4. Set main file: `app.py`
-5. Deploy — that's it!
+If a question falls outside the supported grammar, the app says so instead of inventing a result.
+
+## Testing
+
+Run the suite with:
+
+```bash
+python -m pytest tests\ --tb=short -q
+```
+
+Current repository result: **52 passed**.
 
 ## Data
 
-Dataset sourced from Kaggle: [IPL Dataset 2008–2025](https://www.kaggle.com/datasets/chaitu20/ipl-dataset2008-2025) by **chaitu20**.
+Source dataset: [IPL Dataset 2008-2025](https://www.kaggle.com/datasets/chaitu20/ipl-dataset2008-2025) by **chaitu20**.
 
-The Enriched Dataset created for this project with many derived attributes is also available on Hugging Face [Enriched IPL Dataset 2008–2025](https://huggingface.co/datasets/prasad-gade05/ipl-enriched-2008-2025)
-
-See [DatasetReadme.md](DatasetReadme.md)
+Derived dataset notes: see **[DatasetReadme.md](DatasetReadme.md)**.

@@ -1,12 +1,13 @@
 """
 IPL Analytics — Step 3: Build Aggregate Parquet Files
-Reads enriched ball-by-ball parquet, produces 14 aggregate parquets.
+Reads enriched ball-by-ball parquet, produces 18 aggregate parquets.
 
 Input:  data/processed/ball_by_ball.parquet
 Output: data/processed/{match_summary, player_season, matchups, venue_stats,
         powerplay_stats, dot_sequences, season_structure, player_batting_match,
         player_bowling_match, partnerships, dismissal_patterns,
-        dismissal_by_phase, team_season, points_table}.parquet
+        dismissal_by_phase, team_season, points_table, team_match_results,
+        over_summary, innings_tags, player_season_metrics}.parquet
 """
 
 import pandas as pd
@@ -26,15 +27,19 @@ def save(df: pd.DataFrame, name: str) -> None:
     print(f"    -> {name}.parquet ({len(df):,} rows, {size_kb:.0f} KB)")
 
 
-# ── 1. Match Summary ────────────────────────────────────────────────────────
+def _first_non_null(series: pd.Series):
+    """Return the first non-null value from a series, else NaN."""
+    values = series.dropna()
+    if values.empty:
+        return np.nan
+    return values.iloc[0]
 
-def agg_match_summary(df: pd.DataFrame) -> None:
-    print("  Agg 1: match_summary")
 
+def build_match_summary_frame(df: pd.DataFrame) -> pd.DataFrame:
+    """Build the match summary dataframe for reuse by helper aggregates."""
     inn1 = df[df["innings"] == 1]
     inn2 = df[df["innings"] == 2]
 
-    # Per-innings totals
     def innings_totals(innings_df):
         return (
             innings_df.groupby("match_id")
@@ -46,10 +51,13 @@ def agg_match_summary(df: pd.DataFrame) -> None:
             .reset_index()
         )
 
-    t1 = innings_totals(inn1).rename(columns={"score": "team1_score", "wickets": "team1_wickets", "balls": "team1_balls"})
-    t2 = innings_totals(inn2).rename(columns={"score": "team2_score", "wickets": "team2_wickets", "balls": "team2_balls"})
+    t1 = innings_totals(inn1).rename(
+        columns={"score": "team1_score", "wickets": "team1_wickets", "balls": "team1_balls"}
+    )
+    t2 = innings_totals(inn2).rename(
+        columns={"score": "team2_score", "wickets": "team2_wickets", "balls": "team2_balls"}
+    )
 
-    # Match-level metadata (one row per match)
     match_meta = (
         df.groupby("match_id")
         .agg(
@@ -67,28 +75,108 @@ def agg_match_summary(df: pd.DataFrame) -> None:
             is_super_over_match=("is_super_over_match", "first"),
             result_type=("result_type", "first"),
             method=("method", "first"),
+            is_close_match=("is_close_match", "first"),
         )
         .reset_index()
     )
 
-    # Team names from innings
     teams = (
         inn1.groupby("match_id")
         .agg(team1=("batting_team", "first"), team2=("bowling_team", "first"))
         .reset_index()
     )
 
+    second_innings_target = (
+        inn2.groupby("match_id")["runs_target"]
+        .agg(_first_non_null)
+        .reset_index()
+        .rename(columns={"runs_target": "stored_chase_target"})
+    )
+
     ms = match_meta.merge(teams, on="match_id", how="left")
     ms = ms.merge(t1, on="match_id", how="left")
     ms = ms.merge(t2, on="match_id", how="left")
+    ms = ms.merge(second_innings_target, on="match_id", how="left")
 
-    # Fill NaN scores for matches with no 2nd innings
+    has_second_innings = ms["team2_score"].notna()
+    ms["actual_chase_target"] = ms["stored_chase_target"].where(
+        ms["stored_chase_target"].notna(),
+        np.where(has_second_innings, ms["team1_score"] + 1, np.nan),
+    )
+
     for col in ["team2_score", "team2_wickets", "team2_balls"]:
         ms[col] = ms[col].fillna(0).astype(int)
 
     ms["batting_first_won"] = ms["team1"] == ms["match_won_by"]
 
-    save(ms, "match_summary")
+    return ms
+
+
+def build_player_batting_match_frame(df: pd.DataFrame) -> pd.DataFrame:
+    """Build per-match batting innings aggregates."""
+    pbm = (
+        df.groupby(["match_id", "season", "batter", "batting_team", "innings", "venue"])
+        .agg(
+            runs=("runs_batter", "sum"),
+            balls=("valid_ball", "sum"),
+            fours=("is_four", "sum"),
+            sixes=("is_six", "sum"),
+            dots_faced=("is_dot", "sum"),
+            bat_position=("bat_pos", "first"),
+            was_out=("striker_out", "max"),
+        )
+        .reset_index()
+    )
+
+    pbm["strike_rate"] = (pbm["runs"] / pbm["balls"].clip(lower=1) * 100).round(1)
+    pbm["dot_pct"] = (pbm["dots_faced"] / pbm["balls"].clip(lower=1) * 100).round(1)
+    pbm["is_fifty"] = pbm["runs"] >= 50
+    pbm["is_hundred"] = pbm["runs"] >= 100
+    pbm["is_duck"] = (pbm["runs"] == 0) & (pbm["was_out"] == 1)
+
+    return pbm
+
+
+def build_player_bowling_match_frame(df: pd.DataFrame) -> pd.DataFrame:
+    """Build per-match bowling innings aggregates."""
+    pbm = (
+        df.groupby(["match_id", "season", "bowler", "bowling_team", "innings", "venue"])
+        .agg(
+            runs_conceded=("runs_bowler", "sum"),
+            balls_bowled=("valid_ball", "sum"),
+            wickets=("bowler_wicket", "sum"),
+            dots_bowled=("is_dot", "sum"),
+            boundaries_conceded=("is_boundary", "sum"),
+        )
+        .reset_index()
+    )
+
+    maiden_overs = (
+        df[df["is_maiden"] == True]
+        .groupby(["match_id", "innings", "bowler"])["over"]
+        .nunique()
+        .reset_index()
+        .rename(columns={"over": "maidens"})
+    )
+    pbm = pbm.merge(maiden_overs, on=["match_id", "innings", "bowler"], how="left")
+    pbm["maidens"] = pbm["maidens"].fillna(0).astype(int)
+
+    pbm["economy"] = (pbm["runs_conceded"] / pbm["balls_bowled"].clip(lower=1) * 6).round(2)
+    pbm["bowling_sr"] = np.where(
+        pbm["wickets"] > 0,
+        (pbm["balls_bowled"] / pbm["wickets"]).round(1),
+        np.nan,
+    )
+    pbm["dot_pct"] = (pbm["dots_bowled"] / pbm["balls_bowled"].clip(lower=1) * 100).round(1)
+
+    return pbm
+
+
+# ── 1. Match Summary ────────────────────────────────────────────────────────
+
+def agg_match_summary(df: pd.DataFrame) -> None:
+    print("  Agg 1: match_summary")
+    save(build_match_summary_frame(df), "match_summary")
 
 
 # ── 2. Player-Season Mapping ────────────────────────────────────────────────
@@ -347,69 +435,12 @@ def agg_season_structure(df: pd.DataFrame) -> None:
 
 def agg_player_batting_match(df: pd.DataFrame) -> None:
     print("  Agg 8a: player_batting_match")
-
-    # Use ALL deliveries — batter runs on no-balls ARE credited to the batter.
-    # Only ball count uses valid_ball (no-balls don't count as balls faced).
-    pbm = (
-        df.groupby(["match_id", "season", "batter", "batting_team", "innings", "venue"])
-        .agg(
-            runs=("runs_batter", "sum"),
-            balls=("valid_ball", "sum"),
-            fours=("is_four", "sum"),
-            sixes=("is_six", "sum"),
-            dots_faced=("is_dot", "sum"),
-            bat_position=("bat_pos", "first"),
-            was_out=("striker_out", "max"),
-        )
-        .reset_index()
-    )
-
-    pbm["strike_rate"] = (pbm["runs"] / pbm["balls"].clip(lower=1) * 100).round(1)
-    pbm["dot_pct"] = (pbm["dots_faced"] / pbm["balls"].clip(lower=1) * 100).round(1)
-    pbm["is_fifty"] = pbm["runs"] >= 50
-    pbm["is_hundred"] = pbm["runs"] >= 100
-    pbm["is_duck"] = (pbm["runs"] == 0) & (pbm["was_out"] == 1)
-
-    save(pbm, "player_batting_match")
+    save(build_player_batting_match_frame(df), "player_batting_match")
 
 
 def agg_player_bowling_match(df: pd.DataFrame) -> None:
     print("  Agg 8b: player_bowling_match")
-
-    # Use ALL deliveries — bowler is charged runs on no-balls too.
-    # Only ball count uses valid_ball (no-balls don't count as legal deliveries).
-    pbm = (
-        df.groupby(["match_id", "season", "bowler", "bowling_team", "innings", "venue"])
-        .agg(
-            runs_conceded=("runs_bowler", "sum"),
-            balls_bowled=("valid_ball", "sum"),
-            wickets=("bowler_wicket", "sum"),
-            dots_bowled=("is_dot", "sum"),
-            boundaries_conceded=("is_boundary", "sum"),
-        )
-        .reset_index()
-    )
-
-    # Maidens: count overs with is_maiden=True for this bowler in this match/innings
-    maiden_overs = (
-        df[df["is_maiden"] == True]
-        .groupby(["match_id", "innings", "bowler"])["over"]
-        .nunique()
-        .reset_index()
-        .rename(columns={"over": "maidens"})
-    )
-    pbm = pbm.merge(maiden_overs, on=["match_id", "innings", "bowler"], how="left")
-    pbm["maidens"] = pbm["maidens"].fillna(0).astype(int)
-
-    pbm["economy"] = (pbm["runs_conceded"] / pbm["balls_bowled"].clip(lower=1) * 6).round(2)
-    pbm["bowling_sr"] = np.where(
-        pbm["wickets"] > 0,
-        (pbm["balls_bowled"] / pbm["wickets"]).round(1),
-        np.nan,
-    )
-    pbm["dot_pct"] = (pbm["dots_bowled"] / pbm["balls_bowled"].clip(lower=1) * 100).round(1)
-
-    save(pbm, "player_bowling_match")
+    save(build_player_bowling_match_frame(df), "player_bowling_match")
 
 
 # ── 9. Partnership Summary ──────────────────────────────────────────────────
@@ -579,6 +610,319 @@ def agg_points_table(df: pd.DataFrame) -> None:
     save(pt, "points_table")
 
 
+# ── 13. Team Match Results ─────────────────────────────────────────────────────
+
+def agg_team_match_results(df: pd.DataFrame) -> None:
+    print("  Agg 13: team_match_results")
+
+    ms = build_match_summary_frame(df)
+
+    team1 = ms[
+        [
+            "match_id", "date", "season", "venue", "city", "stage", "result_type",
+            "method", "is_super_over_match", "is_close_match", "toss_winner",
+            "toss_decision", "match_won_by", "win_margin_value", "win_margin_type",
+            "team1", "team2", "team1_score", "team1_wickets", "team1_balls",
+            "team2_score", "team2_wickets", "team2_balls",
+        ]
+    ].copy()
+    team1 = team1.rename(
+        columns={
+            "team1": "team",
+            "team2": "opponent",
+            "team1_score": "runs_scored",
+            "team1_wickets": "wickets_lost",
+            "team1_balls": "balls_faced",
+            "team2_score": "runs_conceded",
+            "team2_wickets": "wickets_taken",
+            "team2_balls": "balls_bowled",
+        }
+    )
+    team1["innings"] = 1
+    team1["batting_first"] = True
+    team1["chasing"] = False
+    team1["target_to_win"] = np.nan
+    team1["total_to_defend"] = team1["runs_scored"] + 1
+
+    team2 = ms[
+        [
+            "match_id", "date", "season", "venue", "city", "stage", "result_type",
+            "method", "is_super_over_match", "is_close_match", "toss_winner",
+            "toss_decision", "match_won_by", "win_margin_value", "win_margin_type",
+            "actual_chase_target", "team1", "team2", "team1_score", "team1_wickets",
+            "team1_balls", "team2_score", "team2_wickets", "team2_balls",
+        ]
+    ].copy()
+    team2 = team2.rename(
+        columns={
+            "team2": "team",
+            "team1": "opponent",
+            "team2_score": "runs_scored",
+            "team2_wickets": "wickets_lost",
+            "team2_balls": "balls_faced",
+            "team1_score": "runs_conceded",
+            "team1_wickets": "wickets_taken",
+            "team1_balls": "balls_bowled",
+            "actual_chase_target": "target_to_win",
+        }
+    )
+    team2["innings"] = 2
+    team2["batting_first"] = False
+    team2["chasing"] = True
+    team2["total_to_defend"] = np.nan
+
+    team_matches = pd.concat([team1, team2], ignore_index=True)
+
+    winner = team_matches["match_won_by"].fillna("").astype(str)
+    has_winner = ~winner.isin(["", "None", "nan"])
+    team_matches["result"] = np.where(
+        team_matches["team"] == winner,
+        "won",
+        np.where(has_winner, "lost", "no_result"),
+    )
+    team_matches["won"] = team_matches["result"] == "won"
+    team_matches["lost"] = team_matches["result"] == "lost"
+    team_matches["no_result"] = team_matches["result"] == "no_result"
+    team_matches["toss_won"] = team_matches["toss_winner"] == team_matches["team"]
+    team_matches["successful_chase"] = team_matches["chasing"] & team_matches["won"]
+    team_matches["successful_defense"] = team_matches["batting_first"] & team_matches["won"]
+
+    save(team_matches, "team_match_results")
+
+
+# ── 14. Over Summary ───────────────────────────────────────────────────────────
+
+def agg_over_summary(df: pd.DataFrame) -> None:
+    print("  Agg 14: over_summary")
+
+    extra_type = df["extra_type"].fillna("")
+    over = (
+        df.groupby(
+            [
+                "match_id", "season", "date", "venue", "stage", "innings",
+                "match_phase", "batting_team", "bowling_team", "over", "bowler",
+            ]
+        )
+        .agg(
+            deliveries_total=("ball", "size"),
+            legal_balls=("valid_ball", "sum"),
+            runs_total=("runs_total", "sum"),
+            runs_batter=("runs_batter", "sum"),
+            runs_bowler=("runs_bowler", "sum"),
+            extras=("runs_extras", "sum"),
+            wickets=("bowler_wicket", "sum"),
+            striker_wickets=("striker_out", "sum"),
+            dots=("is_dot", "sum"),
+            boundaries=("is_boundary", "sum"),
+            fours=("is_four", "sum"),
+            sixes=("is_six", "sum"),
+            wides=("extra_type", lambda s: (s == "wide").sum()),
+            no_balls=("extra_type", lambda s: (s == "noballs").sum()),
+            byes=("extra_type", lambda s: (s == "byes").sum()),
+            leg_byes=("extra_type", lambda s: (s == "legbyes").sum()),
+            is_maiden=("is_maiden", "max"),
+        )
+        .reset_index()
+    )
+
+    over["economy"] = (over["runs_bowler"] / over["legal_balls"].clip(lower=1) * 6).round(2)
+    over["run_rate"] = (over["runs_total"] / over["legal_balls"].clip(lower=1) * 6).round(2)
+    over["is_long_over"] = over["deliveries_total"] > 6
+
+    save(over, "over_summary")
+
+
+# ── 15. Batting Innings Tags ───────────────────────────────────────────────────
+
+def agg_innings_tags(df: pd.DataFrame) -> None:
+    print("  Agg 15: innings_tags")
+
+    batting = build_player_batting_match_frame(df)
+    ms = build_match_summary_frame(df)[
+        [
+            "match_id", "date", "season", "venue", "city", "stage", "team1", "team2",
+            "match_won_by", "result_type", "method", "actual_chase_target",
+        ]
+    ]
+
+    tags = batting.merge(ms, on=["match_id", "season", "venue"], how="left")
+    tags["opposition"] = np.where(tags["batting_team"] == tags["team1"], tags["team2"], tags["team1"])
+
+    winner = tags["match_won_by"].fillna("").astype(str)
+    has_winner = ~winner.isin(["", "None", "nan"])
+    tags["result"] = np.where(
+        tags["batting_team"] == winner,
+        "won",
+        np.where(has_winner, "lost", "no_result"),
+    )
+    tags["won"] = tags["result"] == "won"
+    tags["lost"] = tags["result"] == "lost"
+    tags["no_result"] = tags["result"] == "no_result"
+    tags["batting_first"] = tags["innings"] == 1
+    tags["chasing"] = tags["innings"] == 2
+    tags["target_to_win"] = np.where(tags["innings"] == 2, tags["actual_chase_target"], np.nan)
+
+    tags["is_not_out"] = tags["was_out"] == 0
+    tags["is_score_20_plus"] = tags["runs"] >= 20
+    tags["is_score_30_plus"] = tags["runs"] >= 30
+    tags["is_score_40_plus"] = tags["runs"] >= 40
+    tags["is_score_50_plus"] = tags["runs"] >= 50
+    tags["is_score_90s"] = tags["runs"].between(90, 99)
+    tags["is_score_49"] = tags["runs"] == 49
+    tags["is_score_99"] = tags["runs"] == 99
+    tags["boundary_pct"] = (
+        (tags["fours"] + tags["sixes"]) / tags["balls"].clip(lower=1) * 100
+    ).round(1)
+
+    tags = tags[
+        [
+            "match_id", "date", "season", "venue", "city", "stage", "batter", "batting_team",
+            "opposition", "innings", "batting_first", "chasing", "target_to_win", "result",
+            "won", "lost", "no_result", "runs", "balls", "fours", "sixes", "dots_faced",
+            "bat_position", "was_out", "is_not_out", "strike_rate", "dot_pct", "boundary_pct",
+            "is_duck", "is_fifty", "is_hundred", "is_score_20_plus", "is_score_30_plus",
+            "is_score_40_plus", "is_score_50_plus", "is_score_90s", "is_score_49", "is_score_99",
+        ]
+    ]
+
+    save(tags, "innings_tags")
+
+
+# ── 16. Player Season Metrics ──────────────────────────────────────────────────
+
+def agg_player_season_metrics(df: pd.DataFrame) -> None:
+    print("  Agg 16: player_season_metrics")
+
+    batting = build_player_batting_match_frame(df)
+    bowling = build_player_bowling_match_frame(df)
+
+    batting["is_score_20_plus"] = batting["runs"] >= 20
+    batting["is_score_30_plus"] = batting["runs"] >= 30
+
+    bat = (
+        batting.groupby(["season", "batter"])
+        .agg(
+            batting_innings=("match_id", "count"),
+            batting_matches=("match_id", "nunique"),
+            runs=("runs", "sum"),
+            balls=("balls", "sum"),
+            fours=("fours", "sum"),
+            sixes=("sixes", "sum"),
+            dots_faced=("dots_faced", "sum"),
+            outs=("was_out", "sum"),
+            fifties=("is_fifty", "sum"),
+            hundreds=("is_hundred", "sum"),
+            ducks=("is_duck", "sum"),
+            scores_20_plus=("is_score_20_plus", "sum"),
+            scores_30_plus=("is_score_30_plus", "sum"),
+        )
+        .reset_index()
+        .rename(columns={"batter": "player"})
+    )
+
+    bowl = (
+        bowling.groupby(["season", "bowler"])
+        .agg(
+            bowling_innings=("match_id", "count"),
+            bowling_matches=("match_id", "nunique"),
+            wickets=("wickets", "sum"),
+            runs_conceded=("runs_conceded", "sum"),
+            balls_bowled=("balls_bowled", "sum"),
+            maidens=("maidens", "sum"),
+            dots_bowled=("dots_bowled", "sum"),
+            boundaries_conceded=("boundaries_conceded", "sum"),
+            three_wicket_hauls=("wickets", lambda s: (s >= 3).sum()),
+            four_wicket_hauls=("wickets", lambda s: (s >= 4).sum()),
+            five_wicket_hauls=("wickets", lambda s: (s >= 5).sum()),
+        )
+        .reset_index()
+        .rename(columns={"bowler": "player"})
+    )
+
+    primary_team_candidates = pd.concat(
+        [
+            df.groupby(["season", "batter", "batting_team"])["valid_ball"]
+            .sum()
+            .reset_index()
+            .rename(columns={"batter": "player", "batting_team": "team", "valid_ball": "usage"}),
+            df.groupby(["season", "bowler", "bowling_team"])["valid_ball"]
+            .sum()
+            .reset_index()
+            .rename(columns={"bowler": "player", "bowling_team": "team", "valid_ball": "usage"}),
+        ],
+        ignore_index=True,
+    )
+    primary_team = (
+        primary_team_candidates.groupby(["season", "player", "team"], as_index=False)["usage"]
+        .sum()
+        .sort_values(["season", "player", "usage", "team"], ascending=[True, True, False, True])
+        .drop_duplicates(["season", "player"])
+        [["season", "player", "team"]]
+    )
+
+    player_matches = pd.concat(
+        [
+            df[["season", "match_id", "batter"]]
+            .rename(columns={"batter": "player"}),
+            df[["season", "match_id", "bowler"]]
+            .rename(columns={"bowler": "player"}),
+        ],
+        ignore_index=True,
+    ).dropna()
+    player_matches = (
+        player_matches.drop_duplicates()
+        .groupby(["season", "player"])["match_id"]
+        .nunique()
+        .reset_index()
+        .rename(columns={"match_id": "matches"})
+    )
+
+    champions = (
+        df[df["stage"] == "Final"]
+        .groupby("season")["match_won_by"]
+        .first()
+        .reset_index()
+        .rename(columns={"match_won_by": "champion"})
+    )
+
+    season_metrics = bat.merge(bowl, on=["season", "player"], how="outer")
+    season_metrics = season_metrics.merge(primary_team, on=["season", "player"], how="left")
+    season_metrics = season_metrics.merge(player_matches, on=["season", "player"], how="left")
+    season_metrics = season_metrics.merge(champions, on="season", how="left")
+
+    int_columns = [
+        "batting_innings", "batting_matches", "runs", "balls", "fours", "sixes", "dots_faced",
+        "outs", "fifties", "hundreds", "ducks", "scores_20_plus", "scores_30_plus",
+        "bowling_innings", "bowling_matches", "wickets", "runs_conceded", "balls_bowled",
+        "maidens", "dots_bowled", "boundaries_conceded", "three_wicket_hauls",
+        "four_wicket_hauls", "five_wicket_hauls", "matches",
+    ]
+    for col in int_columns:
+        if col in season_metrics.columns:
+            season_metrics[col] = season_metrics[col].fillna(0).astype(int)
+
+    season_metrics["batting_average"] = (
+        season_metrics["runs"] / season_metrics["outs"].replace(0, np.nan)
+    ).round(2)
+    season_metrics["strike_rate"] = (
+        season_metrics["runs"] * 100.0 / season_metrics["balls"].replace(0, np.nan)
+    ).round(1)
+    season_metrics["economy"] = (
+        season_metrics["runs_conceded"] * 6.0 / season_metrics["balls_bowled"].replace(0, np.nan)
+    ).round(2)
+    season_metrics["bowling_average"] = (
+        season_metrics["runs_conceded"] / season_metrics["wickets"].replace(0, np.nan)
+    ).round(2)
+    season_metrics["bowling_sr"] = (
+        season_metrics["balls_bowled"] / season_metrics["wickets"].replace(0, np.nan)
+    ).round(1)
+    season_metrics["won_title"] = season_metrics["team"] == season_metrics["champion"]
+
+    season_metrics = season_metrics.drop(columns=["champion"], errors="ignore")
+
+    save(season_metrics, "player_season_metrics")
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -601,6 +945,10 @@ def main():
     agg_dismissals(df)
     agg_team_season(df)
     agg_points_table(df)
+    agg_team_match_results(df)
+    agg_over_summary(df)
+    agg_innings_tags(df)
+    agg_player_season_metrics(df)
 
     print("\nAGGREGATION COMPLETE")
     total_files = len(list(OUT_DIR.glob("*.parquet")))

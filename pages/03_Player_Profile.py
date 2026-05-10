@@ -16,6 +16,10 @@ from src.utils.formatters import (
     format_number, format_strike_rate, format_economy,
     format_average, format_overs,
 )
+from src.utils.control_renderer import render_visual_controls, active_control_chips
+from src.utils.control_schema import VisualSpec
+from src.utils.visual_specs import limit_control, number_control
+from src.visualizations.card_renderer import render_active_filters
 
 # ── CSS for metric cards ─────────────────────────────────────────────────────
 st.markdown(big_number_style(), unsafe_allow_html=True)
@@ -285,7 +289,7 @@ def get_over_by_over_bowling(player):
 
 
 @st.cache_data(ttl=3600)
-def get_matchups_vs_bowlers(player):
+def get_matchups_vs_bowlers(player, limit=20):
     return query("""
         SELECT
             bowler AS Bowler, balls AS Balls, runs AS Runs,
@@ -295,12 +299,12 @@ def get_matchups_vs_bowlers(player):
         FROM matchups
         WHERE batter = ?
         ORDER BY balls DESC
-        LIMIT 20
-    """, [player])
+        LIMIT ?
+    """, [player, limit])
 
 
 @st.cache_data(ttl=3600)
-def get_matchups_vs_batters(player):
+def get_matchups_vs_batters(player, limit=20):
     return query("""
         SELECT
             batter AS Batter, balls AS Balls, runs AS Runs,
@@ -310,52 +314,52 @@ def get_matchups_vs_batters(player):
         FROM matchups
         WHERE bowler = ?
         ORDER BY balls DESC
-        LIMIT 20
-    """, [player])
+        LIMIT ?
+    """, [player, limit])
 
 
 @st.cache_data(ttl=3600)
-def get_top_dismissers(player):
+def get_top_dismissers(player, limit=10):
     return query("""
         SELECT bowler, dismissals
         FROM matchups
         WHERE batter = ? AND dismissals > 0
         ORDER BY dismissals DESC
-        LIMIT 10
-    """, [player])
+        LIMIT ?
+    """, [player, limit])
 
 
 @st.cache_data(ttl=3600)
-def get_dominated_bowlers(player):
+def get_dominated_bowlers(player, min_balls=10, limit=10):
     return query("""
         SELECT bowler, balls, runs, ROUND(strike_rate, 1) AS sr
         FROM matchups
-        WHERE batter = ? AND balls >= 10
+        WHERE batter = ? AND balls >= ?
         ORDER BY strike_rate DESC
-        LIMIT 10
-    """, [player])
+        LIMIT ?
+    """, [player, min_balls, limit])
 
 
 @st.cache_data(ttl=3600)
-def get_top_victims(player):
+def get_top_victims(player, limit=10):
     return query("""
         SELECT batter, dismissals
         FROM matchups
         WHERE bowler = ? AND dismissals > 0
         ORDER BY dismissals DESC
-        LIMIT 10
-    """, [player])
+        LIMIT ?
+    """, [player, limit])
 
 
 @st.cache_data(ttl=3600)
-def get_dominated_batters(player):
+def get_dominated_batters(player, min_balls=10, limit=10):
     return query("""
         SELECT batter, balls, runs, ROUND(strike_rate, 1) AS sr
         FROM matchups
-        WHERE bowler = ? AND balls >= 10
+        WHERE bowler = ? AND balls >= ?
         ORDER BY strike_rate ASC
-        LIMIT 10
-    """, [player])
+        LIMIT ?
+    """, [player, min_balls, limit])
 
 
 @st.cache_data(ttl=3600)
@@ -381,8 +385,8 @@ def get_batting_vs_opposition(player):
 
 
 @st.cache_data(ttl=3600)
-def get_batting_by_venue(player):
-    return query("""
+def get_batting_by_venue(player, limit=None):
+    query_str = """
         SELECT
             venue,
             COUNT(DISTINCT match_id) AS matches,
@@ -396,7 +400,10 @@ def get_batting_by_venue(player):
             MAX(runs) AS hs
         FROM player_batting WHERE batter = ?
         GROUP BY venue ORDER BY runs DESC
-    """, [player])
+    """
+    if limit:
+        query_str += f" LIMIT {limit}"
+    return query(query_str, [player])
 
 
 @st.cache_data(ttl=3600)
@@ -430,6 +437,64 @@ def get_dismissals_by_over(player):
         WHERE player_out = ? AND wicket_kind != 'retired hurt'
         GROUP BY over ORDER BY over
     """, [player])
+
+
+# ═══════════════════════════════════════════════════════════════════════
+#  VISUAL SPECS
+# ═══════════════════════════════════════════════════════════════════════
+
+def _matchup_spec(title: str, visual_id: str) -> VisualSpec:
+    return VisualSpec(
+        id=visual_id,
+        title=title,
+        controls=[limit_control(default=20, minimum=10, maximum=50)],
+    )
+
+
+def _top_dismissers_spec() -> VisualSpec:
+    return VisualSpec(
+        id="player_top_dismissers",
+        title="Top Dismissers",
+        controls=[limit_control(default=10, minimum=5, maximum=20)],
+    )
+
+
+def _dominated_bowlers_spec() -> VisualSpec:
+    return VisualSpec(
+        id="player_dominated_bowlers",
+        title="Dominated Bowlers",
+        controls=[
+            number_control("min_balls", "Min balls faced", default=10, minimum=5, maximum=50),
+            limit_control(default=10, minimum=5, maximum=20),
+        ],
+    )
+
+
+def _top_victims_spec() -> VisualSpec:
+    return VisualSpec(
+        id="player_top_victims",
+        title="Top Victims",
+        controls=[limit_control(default=10, minimum=5, maximum=20)],
+    )
+
+
+def _dominated_batters_spec() -> VisualSpec:
+    return VisualSpec(
+        id="player_dominated_batters",
+        title="Dominated Batters",
+        controls=[
+            number_control("min_balls", "Min balls bowled", default=10, minimum=5, maximum=50),
+            limit_control(default=10, minimum=5, maximum=20),
+        ],
+    )
+
+
+def _venue_perf_spec() -> VisualSpec:
+    return VisualSpec(
+        id="player_venue_performance",
+        title="Venue Performance",
+        controls=[limit_control(default=15, minimum=5, maximum=50)],
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -689,7 +754,11 @@ with tabs[1]:
 with tabs[2]:
     # vs Bowlers section
     st.subheader("vs Bowlers (as Batter)")
-    mu_bowlers = get_matchups_vs_bowlers(player)
+    matchup_spec = _matchup_spec("vs Bowlers", "player_matchup_bowlers")
+    mu_controls = render_visual_controls(matchup_spec)
+    render_active_filters(active_control_chips(matchup_spec, mu_controls))
+    mu_limit = mu_controls.get("limit", 15)
+    mu_bowlers = get_matchups_vs_bowlers(player, mu_limit)
     if mu_bowlers.empty:
         st.info("No matchup data available for this player as a batter.")
     else:
@@ -698,32 +767,47 @@ with tabs[2]:
         col_d, col_dom = st.columns(2)
 
         with col_d:
-            st.subheader("Top Dismissers")
-            dismissers = get_top_dismissers(player)
+            dismisser_spec = _top_dismissers_spec()
+            dismisser_controls = render_visual_controls(dismisser_spec)
+            render_active_filters(active_control_chips(dismisser_spec, dismisser_controls))
+            dismisser_limit = dismisser_controls.get("limit", 10)
+            dismissers = get_top_dismissers(player, dismisser_limit)
             if not dismissers.empty:
                 fig_dis = styled_bar(
                     dismissers, x="bowler", y="dismissals",
-                    title="", height=380,
+                    title=f"Top {dismisser_limit} Dismissers", height=380,
                 )
                 fig_dis.update_traces(marker_color=IPL_COLORWAY[0])
                 st.plotly_chart(fig_dis, width='stretch')
+            else:
+                st.info("No dismissal data.")
 
         with col_dom:
-            st.subheader("Dominated Bowlers (SR, min 10 balls)")
-            dominated = get_dominated_bowlers(player)
+            dominated_spec = _dominated_bowlers_spec()
+            dominated_controls = render_visual_controls(dominated_spec)
+            render_active_filters(active_control_chips(dominated_spec, dominated_controls))
+            dom_min_balls = dominated_controls.get("min_balls", 10)
+            dom_limit = dominated_controls.get("limit", 10)
+            dominated = get_dominated_bowlers(player, dom_min_balls, dom_limit)
             if not dominated.empty:
                 fig_dom = styled_bar(
                     dominated, x="bowler", y="sr",
-                    title="", height=380,
+                    title=f"Dominated Bowlers (SR, min {dom_min_balls} balls)", height=380,
                 )
                 fig_dom.update_traces(marker_color=IPL_COLORWAY[1])
                 st.plotly_chart(fig_dom, width='stretch')
+            else:
+                st.info("No data available.")
 
     # vs Batters section (only if bowler)
     if is_bowler:
         st.divider()
         st.subheader("vs Batters (as Bowler)")
-        mu_batters = get_matchups_vs_batters(player)
+        bowler_matchup_spec = _matchup_spec("vs Batters", "player_matchup_batters")
+        bowler_matchup_controls = render_visual_controls(bowler_matchup_spec)
+        render_active_filters(active_control_chips(bowler_matchup_spec, bowler_matchup_controls))
+        bowler_matchup_limit = bowler_matchup_controls.get("limit", 20)
+        mu_batters = get_matchups_vs_batters(player, bowler_matchup_limit)
         if mu_batters.empty:
             st.info("No matchup data available for this player as a bowler.")
         else:
@@ -732,26 +816,37 @@ with tabs[2]:
             col_v, col_d2 = st.columns(2)
 
             with col_v:
-                st.subheader("Top Victims")
-                victims = get_top_victims(player)
+                victim_spec = _top_victims_spec()
+                victim_controls = render_visual_controls(victim_spec)
+                render_active_filters(active_control_chips(victim_spec, victim_controls))
+                victim_limit = victim_controls.get("limit", 10)
+                victims = get_top_victims(player, victim_limit)
                 if not victims.empty:
                     fig_vic = styled_bar(
                         victims, x="batter", y="dismissals",
-                        title="", height=380,
+                        title=f"Top {victim_limit} Victims", height=380,
                     )
                     fig_vic.update_traces(marker_color=IPL_COLORWAY[2])
                     st.plotly_chart(fig_vic, width='stretch')
+                else:
+                    st.info("No dismissal data.")
 
             with col_d2:
-                st.subheader("Dominated Batters (lowest SR, min 10 balls)")
-                dom_bat = get_dominated_batters(player)
+                dominated_batter_spec = _dominated_batters_spec()
+                dominated_batter_controls = render_visual_controls(dominated_batter_spec)
+                render_active_filters(active_control_chips(dominated_batter_spec, dominated_batter_controls))
+                dom_bat_min_balls = dominated_batter_controls.get("min_balls", 10)
+                dom_bat_limit = dominated_batter_controls.get("limit", 10)
+                dom_bat = get_dominated_batters(player, dom_bat_min_balls, dom_bat_limit)
                 if not dom_bat.empty:
                     fig_dom_bat = styled_bar(
                         dom_bat, x="batter", y="sr",
-                        title="", height=380,
+                        title=f"Dominated Batters (lowest SR, min {dom_bat_min_balls} balls)", height=380,
                     )
                     fig_dom_bat.update_traces(marker_color=IPL_COLORWAY[4])
                     st.plotly_chart(fig_dom_bat, width='stretch')
+                else:
+                    st.info("No data available.")
 
 # ─── VENUES & OPPOSITION TAB ─────────────────────────────────────────────────
 with tabs[3]:
@@ -770,8 +865,11 @@ with tabs[3]:
             st.dataframe(opp_display, hide_index=True, width='stretch')
 
     with col_ven:
-        st.subheader("Performance by Venue")
-        ven_df = get_batting_by_venue(player)
+        venue_spec = _venue_perf_spec()
+        venue_controls = render_visual_controls(venue_spec)
+        render_active_filters(active_control_chips(venue_spec, venue_controls))
+        venue_limit = venue_controls.get("limit", 15)
+        ven_df = get_batting_by_venue(player, venue_limit)
         if ven_df.empty:
             st.info("No venue data available.")
         else:

@@ -108,11 +108,12 @@ records = st.Page("pages/10_Records_Anomalies.py", title="Records")
 match_center = st.Page("pages/11_Match_Center.py", title="Match Center")
 tournament = st.Page("pages/12_Tournament_Structure.py", title="Tournament")
 explorer = st.Page("pages/13_Explorer.py", title="Explorer")
+ask_anything = st.Page("pages/14_Ask_Anything.py", title="Ask Anything")
 
 ALL_PAGES = [
     home, season_hub, leaderboards, player_profile, team_profile,
     venue_intel, head_to_head, phase_analysis, pressure, trends,
-    records, match_center, tournament, explorer,
+    records, match_center, tournament, explorer, ask_anything,
 ]
 
 pg = st.navigation(ALL_PAGES, position="hidden")
