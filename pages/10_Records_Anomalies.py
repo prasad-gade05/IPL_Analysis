@@ -483,26 +483,15 @@ def _highest_team_totals(
     limit = _sanitize_limit(limit, 20)
     return query(
         f"""
-        SELECT * FROM (
-            SELECT team1                                   AS Team,
-                   team1_score::INT                        AS Score,
-                   COALESCE(team1_wickets, 0)::INT         AS Wickets,
-                   team2                                   AS "Vs",
-                   venue                                   AS Venue,
-                   season                                  AS Season
-            FROM matches
-            WHERE team1_score IS NOT NULL
-            UNION ALL
-            SELECT team2                                   AS Team,
-                   team2_score::INT                        AS Score,
-                   COALESCE(team2_wickets, 0)::INT         AS Wickets,
-                   team1                                   AS "Vs",
-                   venue                                   AS Venue,
-                   season                                  AS Season
-            FROM matches
-            WHERE team2_score IS NOT NULL
-        ) t
-        WHERE Season BETWEEN {start} AND {end}
+        SELECT team                                      AS Team,
+               score                                     AS Score,
+               wickets                                   AS Wickets,
+               opponent                                  AS "Vs",
+               venue                                     AS Venue,
+               season                                    AS Season
+        FROM completed_team_innings
+        WHERE innings_complete
+          AND season BETWEEN {start} AND {end}
         ORDER BY Score DESC
         LIMIT {limit}
         """
@@ -518,26 +507,16 @@ def _lowest_team_totals(
     limit = _sanitize_limit(limit, 20)
     return query(
         f"""
-        SELECT * FROM (
-            SELECT team1                                   AS Team,
-                   team1_score::INT                        AS Score,
-                   COALESCE(team1_wickets, 0)::INT         AS Wickets,
-                   team2                                   AS "Vs",
-                   venue                                   AS Venue,
-                   season                                  AS Season
-            FROM matches
-            WHERE team1_score IS NOT NULL AND team1_score > 0
-            UNION ALL
-            SELECT team2                                   AS Team,
-                   team2_score::INT                        AS Score,
-                   COALESCE(team2_wickets, 0)::INT         AS Wickets,
-                   team1                                   AS "Vs",
-                   venue                                   AS Venue,
-                   season                                  AS Season
-            FROM matches
-            WHERE team2_score IS NOT NULL AND team2_score > 0
-        ) t
-        WHERE Season BETWEEN {start} AND {end}
+        SELECT team                                      AS Team,
+               score                                     AS Score,
+               wickets                                   AS Wickets,
+               opponent                                  AS "Vs",
+               venue                                     AS Venue,
+               season                                    AS Season
+        FROM completed_team_innings
+        WHERE innings_complete
+          AND score > 0
+          AND season BETWEEN {start} AND {end}
         ORDER BY Score ASC
         LIMIT {limit}
         """
@@ -632,23 +611,15 @@ def _highest_successful_chases(
     limit = _sanitize_limit(limit, 15)
     return query(
         f"""
-        WITH chasing AS (
-            SELECT DISTINCT match_id, batting_team AS chasing_team
-            FROM balls WHERE innings = 2
-        )
-        SELECT c.chasing_team                                                      AS Team,
-               (CASE WHEN c.chasing_team = m.team1 THEN m.team1_score
-                     ELSE m.team2_score END)::INT                                  AS Score,
-                COALESCE(CASE WHEN c.chasing_team = m.team1 THEN m.team1_wickets
-                              ELSE m.team2_wickets END, 0)::INT                    AS Wickets,
-                CASE WHEN c.chasing_team = m.team1 THEN m.team2 ELSE m.team1 END   AS "Vs",
-                ((CASE WHEN c.chasing_team = m.team1 THEN m.team2_score
-                       ELSE m.team1_score END) + 1)::INT                            AS Target,
-                m.venue                                                             AS Venue,
-                m.season                                                            AS Season
-        FROM matches m
-        JOIN chasing c ON m.match_id = c.match_id
-        WHERE m.match_won_by = c.chasing_team
+        SELECT team                                                                AS Team,
+               runs_scored::INT                                                    AS Score,
+               wickets_lost::INT                                                   AS Wickets,
+               opponent                                                            AS "Vs",
+               target_to_win::INT                                                  AS Target,
+               venue                                                               AS Venue,
+               season                                                              AS Season
+        FROM team_match_results
+        WHERE successful_chase
           AND {season_filter}
         ORDER BY Score DESC
         LIMIT {limit}
@@ -665,21 +636,14 @@ def _lowest_totals_defended(
     limit = _sanitize_limit(limit, 15)
     return query(
         f"""
-        WITH first_innings AS (
-            SELECT DISTINCT match_id, batting_team AS defending_team
-            FROM balls WHERE innings = 1
-        )
-        SELECT f.defending_team                                                    AS Team,
-               (CASE WHEN f.defending_team = m.team1 THEN m.team1_score
-                     ELSE m.team2_score END)::INT                                  AS Score,
-               CASE WHEN f.defending_team = m.team1 THEN m.team2 ELSE m.team1 END  AS "Vs",
-               m.win_margin_value::INT                                             AS "Won By (Runs)",
-               m.venue                                                             AS Venue,
-               m.season                                                            AS Season
-        FROM matches m
-        JOIN first_innings f ON m.match_id = f.match_id
-        WHERE m.match_won_by = f.defending_team
-          AND m.win_margin_type = 'runs'
+        SELECT team                                                                AS Team,
+               runs_scored::INT                                                    AS Score,
+               opponent                                                            AS "Vs",
+               win_margin_value::INT                                               AS "Won By (Runs)",
+               venue                                                               AS Venue,
+               season                                                              AS Season
+        FROM team_match_results
+        WHERE successful_defense
           AND {season_filter}
         ORDER BY Score ASC
         LIMIT {limit}
@@ -781,36 +745,47 @@ def _last_ball_finishes(
     limit = _sanitize_limit(limit, 51)
     return query(
         f"""
-        WITH last_ball AS (
-            SELECT match_id,
-                   MAX(over * 6 + CASE WHEN valid_ball THEN 1 ELSE 0 END) AS last_seq
-            FROM balls
-            WHERE innings = 2 AND is_super_over = false
-            GROUP BY match_id
-        ),
-        last_over AS (
-            SELECT DISTINCT b.match_id
+        WITH decisive_last_ball AS (
+            SELECT
+                b.match_id,
+                b.team_runs::INT                                            AS runs_after_ball,
+                (b.team_runs - b.runs_total)::INT                           AS runs_before_ball,
+                COALESCE(m.actual_chase_target, m.team1_score + 1)::INT     AS target_to_win,
+                ROW_NUMBER() OVER (
+                    PARTITION BY b.match_id
+                    ORDER BY b.over DESC, b.ball DESC
+                )                                                           AS ball_order
             FROM balls b
-            JOIN last_ball lb ON b.match_id = lb.match_id
+            JOIN matches m ON b.match_id = m.match_id
             WHERE b.innings = 2
-              AND b.over = 20
+              AND b.valid_ball = true
               AND b.is_super_over = false
         )
         SELECT m.match_won_by                                                  AS Winner,
                CASE WHEN m.match_won_by = m.team1 THEN m.team2
-                    ELSE m.team1 END                                           AS Loser,
+                     ELSE m.team1 END                                           AS Loser,
                m.win_margin_value::INT                                         AS Margin,
                m.win_margin_type                                               AS "Margin Type",
                m.venue                                                         AS Venue,
-               m.season                                                        AS Season
+                m.season                                                        AS Season
         FROM matches m
-        JOIN last_over lo ON m.match_id = lo.match_id
+        JOIN decisive_last_ball lb ON m.match_id = lb.match_id
         WHERE m.match_won_by IS NOT NULL
+          AND m.is_super_over_match = false
           AND m.win_margin_value IS NOT NULL
+          AND lb.ball_order = 1
           AND {season_filter}
           AND (
-                (m.win_margin_type = 'wickets' AND m.win_margin_value <= 2)
-             OR (m.win_margin_type = 'runs'    AND m.win_margin_value <= 3)
+                (
+                    m.match_won_by = m.team2
+                    AND lb.runs_before_ball < lb.target_to_win
+                    AND lb.runs_after_ball >= lb.target_to_win
+                )
+             OR (
+                    m.match_won_by = m.team1
+                    AND lb.target_to_win - lb.runs_before_ball BETWEEN 1 AND 6
+                    AND lb.runs_after_ball < lb.target_to_win
+                )
           )
         ORDER BY m.season DESC, m.date DESC
         LIMIT {limit}

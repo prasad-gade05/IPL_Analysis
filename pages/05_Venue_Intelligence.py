@@ -105,7 +105,9 @@ def get_run_rate_by_phase(venue):
                     / NULLIF(SUM(CASE WHEN valid_ball THEN 1 ELSE 0 END), 0),
                 2) AS run_rate
         FROM balls
-        WHERE venue = ? AND match_phase IS NOT NULL
+        WHERE venue = ?
+          AND match_phase IS NOT NULL
+          AND NOT is_super_over
         GROUP BY match_phase
         ORDER BY CASE match_phase
                      WHEN 'powerplay' THEN 1
@@ -128,6 +130,7 @@ def get_league_avg_run_rate():
                 2) AS run_rate
         FROM balls
         WHERE match_phase IS NOT NULL
+          AND NOT is_super_over
         GROUP BY match_phase
         ORDER BY CASE match_phase
                      WHEN 'powerplay' THEN 1
@@ -149,6 +152,7 @@ def get_boundary_stats(venue):
                   / NULLIF(COUNT(DISTINCT match_id), 0), 1) AS avg_sixes
         FROM balls
         WHERE venue = ?
+          AND NOT is_super_over
         """,
         [venue],
     )
@@ -162,6 +166,7 @@ def get_wicket_types(venue):
                COUNT(*)    AS count
         FROM balls
         WHERE venue = ?
+          AND NOT is_super_over
           AND wicket_kind NOT IN ('not_out', 'retired hurt')
         GROUP BY wicket_kind
         ORDER BY count DESC

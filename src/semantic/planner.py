@@ -1050,7 +1050,7 @@ ORDER BY Season
 def _chase_records_plan(question: str, filters: ResolvedFilters, chasing: bool) -> SemanticPlan:
     clauses = _apply_team_match_filters(filters)
     if chasing:
-        clauses.extend(["chasing = TRUE", "won = TRUE"])
+        clauses.append("successful_chase = TRUE")
         title = "Highest successful chases"
         metric_column = '"Target"'
         sql = f"""
@@ -1067,7 +1067,7 @@ LIMIT {filters.top_n}
 """.strip()
         intent_id = "highest-successful-chase"
     else:
-        clauses.extend(["batting_first = TRUE", "won = TRUE"])
+        clauses.append("successful_defense = TRUE")
         title = "Lowest totals defended"
         metric_column = '"Total Defended"'
         sql = f"""

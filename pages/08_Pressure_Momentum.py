@@ -131,6 +131,7 @@ def _dot_cascade(
                COUNT(*)::INT                    AS cnt
         FROM   balls
         WHERE  is_sequence_breaker = true
+               AND NOT is_super_over
                AND {season_filter}
         GROUP  BY dots, outcome
         ORDER  BY dots, outcome
@@ -157,6 +158,7 @@ def _dismissal_prob_after_dots(
                      / NULLIF(COUNT(*), 0), 2)  AS wicket_pct
         FROM   balls
         WHERE  {season_filter}
+               AND NOT is_super_over
                AND valid_ball = true
         GROUP  BY dots
         HAVING total_balls >= {min_balls}
@@ -193,6 +195,7 @@ def _team_dot_resilience(
         FROM   balls
         WHERE  is_sequence_breaker = true
                AND consecutive_dots_before >= {min_pressure_dots}
+               AND NOT is_super_over
                AND {season_filter}
         GROUP  BY team
         HAVING pressure_balls >= {min_pressure_balls}
@@ -223,6 +226,7 @@ def _dot_ball_creators(
                               ELSE NULL END), 2)               AS avg_consec_dots
         FROM   balls
         WHERE  valid_ball = true
+               AND NOT is_super_over
                AND {season_filter}
         GROUP  BY bowler
         HAVING total_balls >= {min_balls}
@@ -308,6 +312,7 @@ def _phase_dot_pct(
         FROM   balls
         WHERE  valid_ball = true
                AND match_phase IS NOT NULL
+               AND NOT is_super_over
                AND {season_filter}
         GROUP  BY phase
         ORDER  BY CASE phase
@@ -331,13 +336,13 @@ def _chase_success_by_target(
         f"""
         WITH chase AS (
             SELECT match_id,
-                   team1_score + 1                              AS target,
-                   CASE WHEN batting_first_won = false THEN 1 ELSE 0 END AS chase_won
-            FROM   matches
+                   target_to_win                                AS target,
+                   CASE WHEN successful_chase THEN 1 ELSE 0 END AS chase_won
+            FROM   team_match_results
             WHERE  {season_filter}
-                   AND team1_score IS NOT NULL
-                   AND team2_score IS NOT NULL
-                   AND result_type = 'normal'
+                   AND chasing
+                   AND innings_complete
+                   AND target_to_win IS NOT NULL
         )
         SELECT CASE
                  WHEN target <= 120 THEN '100-120'
@@ -368,16 +373,15 @@ def _chase_success_by_season(
         f"""
         SELECT season,
                COUNT(*)::INT                                    AS matches,
-               SUM(CASE WHEN batting_first_won = false
+               SUM(CASE WHEN successful_chase
                     THEN 1 ELSE 0 END)::INT                     AS chase_wins,
-               ROUND(SUM(CASE WHEN batting_first_won = false
-                          THEN 1 ELSE 0 END) * 100.0
-                     / NULLIF(COUNT(*), 0), 1)                  AS chase_win_pct
-        FROM   matches
+               ROUND(SUM(CASE WHEN successful_chase
+                           THEN 1 ELSE 0 END) * 100.0
+                      / NULLIF(COUNT(*), 0), 1)                  AS chase_win_pct
+        FROM   team_match_results
         WHERE  {season_filter}
-               AND team1_score IS NOT NULL
-               AND team2_score IS NOT NULL
-               AND result_type = 'normal'
+               AND chasing
+               AND innings_complete
         GROUP  BY season
         ORDER  BY season
         """
@@ -394,17 +398,15 @@ def _highest_successful_chases(
     limit = _sanitize_limit(limit, 15)
     return query(
         f"""
-        SELECT match_won_by                     AS team,
-               team1_score + 1                  AS target,
-               team2_score::INT                 AS score,
+        SELECT team,
+               target_to_win::INT               AS target,
+               runs_scored::INT                 AS score,
                season,
                venue,
-               CAST(win_margin_value AS INT)    AS margin_wickets
-        FROM   matches
+                CAST(win_margin_value AS INT)    AS margin_wickets
+        FROM   team_match_results
         WHERE  {season_filter}
-               AND batting_first_won = false
-               AND win_margin_type = 'wickets'
-               AND result_type = 'normal'
+               AND successful_chase
         ORDER  BY target DESC
         LIMIT  {limit}
         """
@@ -421,18 +423,16 @@ def _lowest_totals_defended(
     limit = _sanitize_limit(limit, 15)
     return query(
         f"""
-        SELECT team1                            AS defending_team,
-               team1_score::INT                 AS total_defended,
-               team2                            AS chasing_team,
-               team2_score::INT                 AS chaser_score,
+        SELECT team                             AS defending_team,
+               runs_scored::INT                 AS total_defended,
+               opponent                         AS chasing_team,
+               runs_conceded::INT               AS chaser_score,
                season,
                venue,
-               CAST(win_margin_value AS INT)    AS margin_runs
-        FROM   matches
+                CAST(win_margin_value AS INT)    AS margin_runs
+        FROM   team_match_results
         WHERE  {season_filter}
-               AND batting_first_won = true
-               AND win_margin_type = 'runs'
-               AND result_type = 'normal'
+               AND successful_defense
         ORDER  BY total_defended ASC
         LIMIT  {limit}
         """
@@ -457,18 +457,21 @@ def _best_chase_innings(
                ROUND(SUM(b.runs_batter) * 100.0
                      / NULLIF(SUM(CASE WHEN b.valid_ball
                                   THEN 1 ELSE 0 END), 0), 1)   AS sr,
-               (m.team1_score + 1)::INT                         AS target,
+               tmr.target_to_win::INT                           AS target,
                b.season,
                b.batting_team                                   AS team
         FROM   balls b
-        JOIN   matches m ON b.match_id = m.match_id
+        JOIN   team_match_results tmr
+               ON b.match_id = tmr.match_id
+              AND tmr.team = b.batting_team
+              AND tmr.chasing
+              AND tmr.successful_chase
         WHERE  b.innings = 2
+               AND NOT b.is_super_over
                AND {season_filter_balls}
-               AND m.batting_first_won = false
-               AND b.batting_team = m.match_won_by
-               AND m.result_type = 'normal'
+               AND tmr.target_to_win IS NOT NULL
         GROUP  BY b.match_id, b.batter, b.season, b.batting_team,
-                  m.team1_score
+                  tmr.target_to_win
         HAVING runs >= {min_runs}
         ORDER  BY runs DESC, sr DESC
         LIMIT  {limit}
@@ -488,22 +491,21 @@ def _teams_best_at_chasing(
     min_chase_matches = _sanitize_minimum(min_chase_matches, 10)
     return query(
         f"""
-        SELECT team2                            AS team,
+        SELECT team,
                COUNT(*)::INT                    AS chase_matches,
-               SUM(CASE WHEN batting_first_won = false
+               SUM(CASE WHEN successful_chase
                     THEN 1 ELSE 0 END)::INT     AS chase_wins,
-               ROUND(SUM(CASE WHEN batting_first_won = false
-                          THEN 1 ELSE 0 END) * 100.0
-                     / NULLIF(COUNT(*), 0), 1)  AS chase_win_pct,
-               ROUND(AVG(CASE WHEN batting_first_won = false
-                               AND win_margin_type = 'wickets'
-                          THEN win_margin_value
-                          ELSE NULL END), 1)    AS avg_chase_margin_wkts
-        FROM   matches
+               ROUND(SUM(CASE WHEN successful_chase
+                           THEN 1 ELSE 0 END) * 100.0
+                      / NULLIF(COUNT(*), 0), 1)  AS chase_win_pct,
+               ROUND(AVG(CASE WHEN successful_chase
+                                AND win_margin_type = 'wickets'
+                           THEN win_margin_value
+                           ELSE NULL END), 1)    AS avg_chase_margin_wkts
+        FROM   team_match_results
         WHERE  {season_filter}
-               AND team1_score IS NOT NULL
-               AND team2_score IS NOT NULL
-               AND result_type = 'normal'
+               AND chasing
+               AND innings_complete
         GROUP  BY team
         HAVING chase_matches >= {min_chase_matches}
         ORDER  BY chase_win_pct DESC
@@ -529,6 +531,7 @@ def _partnership_rr_by_wicket(
                COUNT(*)::INT                    AS partnerships
         FROM   partnerships
         WHERE  {season_filter}
+               AND innings <= 2
                AND wicket_number BETWEEN 1 AND 10
                AND balls >= {min_balls}
         GROUP  BY wicket_number
@@ -560,6 +563,7 @@ def _recovery_partnerships(
                p.team_wicket_at_start::INT      AS wkts_down
         FROM   partnerships p
         WHERE  {season_filter}
+               AND p.innings <= 2
                AND p.runs >= {min_runs}
                AND p.team_wicket_at_start >= {min_wickets_down}
                AND p.wicket_number <= 6
@@ -588,6 +592,7 @@ def _biggest_partnerships(
                p.boundaries::INT                AS boundaries
         FROM   partnerships p
         WHERE  {season_filter}
+               AND p.innings <= 2
         ORDER  BY p.runs DESC
         LIMIT  {limit}
         """
@@ -615,6 +620,7 @@ def _most_impactful_partnerships(
                p.season
         FROM   partnerships p
         WHERE  {season_filter}
+               AND p.innings <= 2
                AND p.balls >= {min_balls}
         ORDER  BY impact_score DESC
         LIMIT  {limit}
@@ -646,6 +652,7 @@ def _close_match_heroes(
                                   THEN 1 ELSE 0 END), 0), 1)   AS sr
         FROM   balls
         WHERE  is_close_match = true
+               AND NOT is_super_over
                AND {season_filter}
         GROUP  BY batter
         HAVING matches >= {min_matches}
@@ -678,6 +685,7 @@ def _playoff_performance(
         FROM   balls
         WHERE  stage != 'League'
                AND stage IS NOT NULL
+               AND NOT is_super_over
                AND {season_filter}
         GROUP  BY batter
         HAVING total_runs >= {min_runs}
@@ -736,6 +744,7 @@ def _death_over_pressure_batting(
         FROM   balls
         WHERE  match_phase = 'death'
                AND is_close_match = true
+               AND NOT is_super_over
                AND {season_filter}
         GROUP  BY batter
         HAVING balls >= {min_balls}

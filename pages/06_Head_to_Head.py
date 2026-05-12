@@ -469,14 +469,14 @@ else:
         first_inn["target"] = first_inn["team1_score"]
         second_inn_scores = first_inn["team2_score"]
 
-        avg_target = first_inn["team1_score"].mean()
+        completed_h2h = h2h_df[h2h_df["result_type"] != "no result"].copy()
+        avg_target = completed_h2h["team1_score"].mean()
         successful_chases = 0
         total_chases = 0
-        for _, m in h2h_df.iterrows():
+        for _, m in completed_h2h.iterrows():
             if pd.notna(m["team1_score"]) and pd.notna(m["team2_score"]):
                 total_chases += 1
-                # team2 chases; they win if match_won_by == team2
-                if m["match_won_by"] == m["team2"]:
+                if m["team2_score"] >= (m["team1_score"] + 1):
                     successful_chases += 1
 
         chase_success = round(successful_chases * 100.0 / total_chases, 1) if total_chases > 0 else 0

@@ -175,6 +175,7 @@ def _phase_avg_trend(phase, season_range=DEFAULT_SEASON_RANGE, innings_choice="B
                    SUM((runs_batter + runs_extras)) AS phase_runs
             FROM   balls
             WHERE  match_phase = '{phase}'
+              AND  NOT is_super_over
               AND  {season_filter} {inn_filter}
             GROUP  BY match_id, innings, season
         ) sub
@@ -193,6 +194,7 @@ def _phase_distribution(phase, season_range=DEFAULT_SEASON_RANGE, innings_choice
         SELECT SUM((runs_batter + runs_extras)) AS runs
         FROM   balls
         WHERE  match_phase = '{phase}'
+          AND  NOT is_super_over
           AND  {season_filter} {inn_filter}
         GROUP  BY match_id, innings
     """)
@@ -213,6 +215,7 @@ def _phase_team_avg(phase, season_range=DEFAULT_SEASON_RANGE, innings_choice="Bo
                    SUM((runs_batter + runs_extras))   AS phase_runs
             FROM   balls
             WHERE  match_phase = '{phase}'
+              AND  NOT is_super_over
               AND  {season_filter} {inn_filter}
             GROUP  BY match_id, innings
         ) sub
@@ -233,6 +236,7 @@ def _phase_dot_trend(phase, season_range=DEFAULT_SEASON_RANGE, innings_choice="B
                      AS dot_pct
         FROM   balls
         WHERE  match_phase = '{phase}'
+          AND  NOT is_super_over
           AND  {season_filter} {inn_filter}
         GROUP  BY season
         ORDER  BY season
@@ -250,6 +254,7 @@ def _phase_boundary_trend(phase, season_range=DEFAULT_SEASON_RANGE, innings_choi
                      AS boundary_pct
         FROM   balls
         WHERE  match_phase = '{phase}'
+          AND  NOT is_super_over
           AND  {season_filter} {inn_filter}
         GROUP  BY season
         ORDER  BY season
@@ -273,6 +278,7 @@ def _phase_best_scores(phase, season_range=DEFAULT_SEASON_RANGE, innings_choice=
                        AS phase_wickets
             FROM   balls
             WHERE  match_phase = '{phase}'
+              AND  NOT is_super_over
               AND  {season_filter} {inn_filter}
             GROUP  BY match_id, innings, season
         ) sub
@@ -305,6 +311,7 @@ def _phase_top_batters(phase, season_range=DEFAULT_SEASON_RANGE, innings_choice=
                                    THEN 1 ELSE 0 END), 0), 2) AS avg
         FROM   balls
         WHERE  match_phase = '{phase}'
+          AND  NOT is_super_over
           AND  {season_filter} {inn_filter}
         GROUP  BY batter
         HAVING SUM(CASE WHEN valid_ball THEN 1 ELSE 0 END) >= {min_balls}
@@ -330,6 +337,7 @@ def _phase_top_bowlers(phase, season_range=DEFAULT_SEASON_RANGE, innings_choice=
                      / NULLIF(SUM(CASE WHEN valid_ball THEN 1 ELSE 0 END), 0), 1) AS dot_pct
         FROM   balls
         WHERE  match_phase = '{phase}'
+          AND  NOT is_super_over
           AND  {season_filter} {inn_filter}
         GROUP  BY bowler
         HAVING SUM(CASE WHEN valid_ball THEN 1 ELSE 0 END) >= {min_balls}
@@ -354,6 +362,7 @@ def _death_sixes_trend(season_range=DEFAULT_SEASON_RANGE, innings_choice="Both")
                2) AS avg_sixes
         FROM   balls
         WHERE  match_phase = 'death'
+          AND  NOT is_super_over
           AND  {season_filter} {inn_filter}
         GROUP  BY season
         ORDER  BY season
@@ -378,6 +387,7 @@ def _phase_rr_evolution(season_range=DEFAULT_SEASON_RANGE, innings_choice="Both"
                        AS phase_rr
             FROM   balls
             WHERE  match_phase IS NOT NULL
+              AND  NOT is_super_over
               AND  {season_filter} {inn_filter}
             GROUP  BY match_id, innings, season, match_phase
         ) sub
@@ -397,6 +407,7 @@ def _phase_boundary_dist(season_range=DEFAULT_SEASON_RANGE, innings_choice="Both
                SUM(CASE WHEN is_boundary THEN 1 ELSE 0 END)::INT AS boundaries
         FROM   balls
         WHERE  match_phase IS NOT NULL
+          AND  NOT is_super_over
           AND  {season_filter} {inn_filter}
         GROUP  BY match_phase
     """)
@@ -413,6 +424,7 @@ def _phase_wicket_dist(season_range=DEFAULT_SEASON_RANGE, innings_choice="Both")
                SUM(CASE WHEN wicket_kind NOT IN ('not_out', 'retired hurt') THEN 1 ELSE 0 END)::INT AS wickets
         FROM   balls
         WHERE  match_phase IS NOT NULL
+          AND  NOT is_super_over
           AND  {season_filter} {inn_filter}
         GROUP  BY match_phase
     """)
@@ -432,6 +444,7 @@ def _phase_contribution(season_range=DEFAULT_SEASON_RANGE, innings_choice="Both"
                    SUM((runs_batter + runs_extras)) AS phase_runs
             FROM   balls
             WHERE  match_phase IS NOT NULL
+              AND  NOT is_super_over
               AND  {season_filter} {inn_filter}
             GROUP  BY match_id, innings, season, match_phase
         ) sub
@@ -476,6 +489,7 @@ def _over_by_over(season_range=DEFAULT_SEASON_RANGE, innings_choice="Both"):
             FROM   balls
             WHERE  over BETWEEN 1 AND 20
               AND  match_phase IS NOT NULL
+              AND  NOT is_super_over
               AND  {season_filter} {inn_filter}
             GROUP  BY over
         ) sub

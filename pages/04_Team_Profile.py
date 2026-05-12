@@ -201,16 +201,14 @@ def get_top_run_scorers(team, limit=10):
 def get_highest_team_totals(team, limit=10):
     return query(
         """
-        SELECT match_id, season, venue,
-               CASE WHEN team1 = ? THEN team2 ELSE team1 END AS opponent,
-               CASE WHEN team1 = ? THEN team1_score ELSE team2_score END AS score,
-               CASE WHEN team1 = ? THEN team1_wickets ELSE team2_wickets END AS wickets
-        FROM matches
-        WHERE (team1 = ? OR team2 = ?)
+        SELECT match_id, season, venue, opponent, score, wickets
+        FROM completed_team_innings
+        WHERE innings_complete
+          AND team = ?
         ORDER BY score DESC
         LIMIT ?
         """,
-        [team, team, team, team, team, limit],
+        [team, limit],
     )
 
 
@@ -218,18 +216,15 @@ def get_highest_team_totals(team, limit=10):
 def get_lowest_team_totals(team, limit=10):
     return query(
         """
-        SELECT match_id, season, venue,
-               CASE WHEN team1 = ? THEN team2 ELSE team1 END AS opponent,
-               CASE WHEN team1 = ? THEN team1_score ELSE team2_score END AS score,
-               CASE WHEN team1 = ? THEN team1_wickets ELSE team2_wickets END AS wickets,
-               match_won_by
-        FROM matches
-        WHERE (team1 = ? OR team2 = ?)
-          AND (CASE WHEN team1 = ? THEN team1_score ELSE team2_score END) IS NOT NULL
+        SELECT match_id, season, venue, opponent, score, wickets, match_won_by
+        FROM completed_team_innings
+        WHERE innings_complete
+          AND team = ?
+          AND score IS NOT NULL
         ORDER BY score ASC
         LIMIT ?
         """,
-        [team, team, team, team, team, team, limit],
+        [team, limit],
     )
 
 
@@ -356,19 +351,13 @@ def get_highest_team_totals(team, limit=10):
     return query(
         """
         SELECT score, wickets, season, opponent
-        FROM (
-            SELECT team1_score AS score, team1_wickets AS wickets,
-                   season, team2 AS opponent
-            FROM matches WHERE team1 = ? AND team1_score IS NOT NULL
-            UNION ALL
-            SELECT team2_score AS score, team2_wickets AS wickets,
-                   season, team1 AS opponent
-            FROM matches WHERE team2 = ? AND team2_score IS NOT NULL
-        )
+        FROM completed_team_innings
+        WHERE innings_complete
+          AND team = ?
         ORDER BY score DESC
         LIMIT ?
         """,
-        [team, team, limit],
+        [team, limit],
     )
 
 
@@ -377,19 +366,14 @@ def get_lowest_team_totals(team, limit=10):
     return query(
         """
         SELECT score, wickets, season, opponent
-        FROM (
-            SELECT team1_score AS score, team1_wickets AS wickets,
-                   season, team2 AS opponent
-            FROM matches WHERE team1 = ? AND team1_score IS NOT NULL
-            UNION ALL
-            SELECT team2_score AS score, team2_wickets AS wickets,
-                   season, team1 AS opponent
-            FROM matches WHERE team2 = ? AND team2_score IS NOT NULL
-        )
+        FROM completed_team_innings
+        WHERE innings_complete
+          AND team = ?
+          AND score IS NOT NULL
         ORDER BY score ASC
         LIMIT ?
         """,
-        [team, team, limit],
+        [team, limit],
     )
 
 
@@ -616,25 +600,26 @@ def get_chase_success_by_target(team):
         """
         SELECT target_range,
                COUNT(*)  AS total_chases,
-               SUM(CASE WHEN match_won_by = ? THEN 1 ELSE 0 END) AS successful,
+               SUM(CASE WHEN successful_chase THEN 1 ELSE 0 END) AS successful,
                ROUND(
-                   SUM(CASE WHEN match_won_by = ? THEN 1 ELSE 0 END)
-                   * 100.0 / NULLIF(COUNT(*), 0), 1
-               ) AS success_pct
+                    SUM(CASE WHEN successful_chase THEN 1 ELSE 0 END)
+                    * 100.0 / NULLIF(COUNT(*), 0), 1
+                ) AS success_pct
         FROM (
-            SELECT match_id, match_won_by,
+            SELECT match_id, successful_chase,
                    CASE
-                       WHEN team1_score + 1 <  130 THEN '< 130'
-                       WHEN team1_score + 1 <= 149  THEN '130-149'
-                       WHEN team1_score + 1 <= 169  THEN '150-169'
-                       WHEN team1_score + 1 <= 189  THEN '170-189'
-                       WHEN team1_score + 1 <= 209  THEN '190-209'
-                       ELSE '210+'
-                   END AS target_range
-            FROM matches
-            WHERE team2 = ?
-              AND team1_score IS NOT NULL
-              AND match_won_by IS NOT NULL
+                        WHEN target_to_win <  130 THEN '< 130'
+                        WHEN target_to_win <= 149  THEN '130-149'
+                        WHEN target_to_win <= 169  THEN '150-169'
+                        WHEN target_to_win <= 189  THEN '170-189'
+                        WHEN target_to_win <= 209  THEN '190-209'
+                        ELSE '210+'
+                    END AS target_range
+            FROM team_match_results
+            WHERE team = ?
+              AND chasing
+              AND innings_complete
+              AND target_to_win IS NOT NULL
         ) sub
         GROUP BY target_range
         ORDER BY CASE target_range
@@ -646,7 +631,7 @@ def get_chase_success_by_target(team):
             ELSE 6
         END
         """,
-        [team, team, team],
+        [team],
     )
 
 
@@ -654,18 +639,18 @@ def get_chase_success_by_target(team):
 def get_highest_successful_chases(team, limit=5):
     return query(
         """
-        SELECT team2_score       AS chase_score,
-               (team1_score + 1) AS target_score,
-               team1             AS opponent,
+        SELECT runs_scored       AS chase_score,
+               target_to_win     AS target_score,
+               opponent,
                season, venue,
                win_margin_value  AS margin
-        FROM matches
-        WHERE team2 = ? AND match_won_by = ?
-          AND team2_score IS NOT NULL
-        ORDER BY team2_score DESC
+        FROM team_match_results
+        WHERE team = ?
+          AND successful_chase
+        ORDER BY runs_scored DESC
         LIMIT ?
         """,
-        [team, team, limit],
+        [team, limit],
     )
 
 
@@ -673,18 +658,18 @@ def get_highest_successful_chases(team, limit=5):
 def get_lowest_totals_defended(team, limit=5):
     return query(
         """
-        SELECT team1_score       AS defended_score,
-               team2_score       AS opponent_score,
-               team2             AS opponent,
+        SELECT runs_scored       AS defended_score,
+               runs_conceded     AS opponent_score,
+               opponent,
                season, venue,
                win_margin_value  AS margin
-        FROM matches
-        WHERE team1 = ? AND match_won_by = ?
-          AND team1_score IS NOT NULL
-        ORDER BY team1_score ASC
+        FROM team_match_results
+        WHERE team = ?
+          AND successful_defense
+        ORDER BY runs_scored ASC
         LIMIT ?
         """,
-        [team, team, limit],
+        [team, limit],
     )
 
 

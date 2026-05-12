@@ -337,21 +337,21 @@ PRESET_CATEGORIES: dict[str, dict[str, dict]] = {
         "Highest Team Totals": {
             "sql": """
                 SELECT season AS Season, venue AS Venue,
-                       team1 AS Team1, team1_score AS T1_Score, team1_wickets AS T1_Wkts,
-                       team2 AS Team2, team2_score AS T2_Score, team2_wickets AS T2_Wkts,
-                       match_won_by AS Winner, stage AS Stage
-                FROM matches
-                ORDER BY GREATEST(team1_score, team2_score) DESC LIMIT 20
+                       team AS Team, score AS Score, wickets AS Wkts,
+                       opponent AS Opponent, match_won_by AS Winner, stage AS Stage
+                FROM completed_team_innings
+                WHERE innings_complete
+                ORDER BY score DESC LIMIT 20
             """, "chart": "none", "x": "", "y": "",
         },
         "Lowest Team Totals (All Out or 20 overs)": {
             "sql": """
                 SELECT season AS Season, venue AS Venue,
-                       team1 AS Team1, team1_score AS T1_Score, team1_wickets AS T1_Wkts,
-                       team2 AS Team2, team2_score AS T2_Score, team2_wickets AS T2_Wkts,
-                       match_won_by AS Winner
-                FROM matches
-                ORDER BY LEAST(team1_score, team2_score) ASC LIMIT 20
+                       team AS Team, score AS Score, wickets AS Wkts,
+                       opponent AS Opponent, match_won_by AS Winner
+                FROM completed_team_innings
+                WHERE innings_complete AND score > 0
+                ORDER BY score ASC LIMIT 20
             """, "chart": "none", "x": "", "y": "",
         },
         "Biggest Win Margins (by Runs)": {
@@ -464,9 +464,10 @@ PRESET_CATEGORIES: dict[str, dict[str, dict]] = {
         "Most Expensive Overs Ever (20+ runs)": {
             "sql": """
                 SELECT b.bowler AS Bowler, b.batting_team AS Batting_Team,
-                       b.over+1 AS Over_No, b.season AS Season, b.venue AS Venue,
+                       b.over AS Over_No, b.season AS Season, b.venue AS Venue,
                        SUM(b.runs_batter + b.runs_extras) AS Over_Runs
                 FROM balls b
+                WHERE NOT b.is_super_over
                 GROUP BY b.match_id, b.innings, b.over,
                          b.bowler, b.batting_team, b.season, b.venue
                 HAVING SUM(b.runs_batter + b.runs_extras) >= 20
