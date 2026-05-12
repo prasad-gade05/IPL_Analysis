@@ -455,27 +455,19 @@ def _ipl_titles(season_range=DEFAULT_SEASON_RANGE):
 @st.cache_data(ttl=3600)
 def _highest_totals(season_range=DEFAULT_SEASON_RANGE, team=None, limit=15):
     season_filter = _season_condition("season", season_range)
-    tf1 = f"AND team1 = '{team}'" if team else ""
-    tf2 = f"AND team2 = '{team}'" if team else ""
+    tf = f"AND team = '{team}'" if team else ""
     limit = _sanitize_limit(limit, 15)
     return query(f"""
-        SELECT * FROM (
-            SELECT team1 AS team,
-                   team1_score::INT                          AS score,
-                   COALESCE(team1_wickets, 0)::INT           AS wickets,
-                   team2 AS opponent, venue, season
-            FROM matches
-            WHERE {season_filter} {tf1}
-              AND team1_score IS NOT NULL
-            UNION ALL
-            SELECT team2 AS team,
-                   team2_score::INT                          AS score,
-                   COALESCE(team2_wickets, 0)::INT           AS wickets,
-                   team1 AS opponent, venue, season
-            FROM matches
-            WHERE {season_filter} {tf2}
-              AND team2_score IS NOT NULL
-        ) t
+        SELECT team,
+               score,
+               wickets,
+               opponent,
+               venue,
+               season
+        FROM completed_team_innings
+        WHERE innings_complete
+          AND score IS NOT NULL
+          AND {season_filter} {tf}
         ORDER BY score DESC
         LIMIT {limit}
     """)
@@ -484,27 +476,19 @@ def _highest_totals(season_range=DEFAULT_SEASON_RANGE, team=None, limit=15):
 @st.cache_data(ttl=3600)
 def _lowest_totals(season_range=DEFAULT_SEASON_RANGE, team=None, limit=15):
     season_filter = _season_condition("season", season_range)
-    tf1 = f"AND team1 = '{team}'" if team else ""
-    tf2 = f"AND team2 = '{team}'" if team else ""
+    tf = f"AND team = '{team}'" if team else ""
     limit = _sanitize_limit(limit, 15)
     return query(f"""
-        SELECT * FROM (
-            SELECT team1 AS team,
-                   team1_score::INT                          AS score,
-                   COALESCE(team1_wickets, 0)::INT           AS wickets,
-                   team2 AS opponent, venue, season
-            FROM matches
-            WHERE {season_filter} {tf1}
-              AND team1_score IS NOT NULL AND team1_score > 0
-            UNION ALL
-            SELECT team2 AS team,
-                   team2_score::INT                          AS score,
-                   COALESCE(team2_wickets, 0)::INT           AS wickets,
-                   team1 AS opponent, venue, season
-            FROM matches
-            WHERE {season_filter} {tf2}
-              AND team2_score IS NOT NULL AND team2_score > 0
-        ) t
+        SELECT team,
+               score,
+               wickets,
+               opponent,
+               venue,
+               season
+        FROM completed_team_innings
+        WHERE innings_complete
+          AND score > 0
+          AND {season_filter} {tf}
         ORDER BY score ASC
         LIMIT {limit}
     """)
@@ -512,30 +496,22 @@ def _lowest_totals(season_range=DEFAULT_SEASON_RANGE, team=None, limit=15):
 
 @st.cache_data(ttl=3600)
 def _highest_chases(season_range=DEFAULT_SEASON_RANGE, team=None, limit=10):
-    season_filter = _season_condition("m.season", season_range)
-    tf = f"AND c.chasing_team = '{team}'" if team else ""
+    season_filter = _season_condition("season", season_range)
+    tf = f"AND team = '{team}'" if team else ""
     limit = _sanitize_limit(limit, 10)
     return query(f"""
-        WITH chasing AS (
-            SELECT DISTINCT match_id, batting_team AS chasing_team
-            FROM balls
-            WHERE innings = 2
-        )
         SELECT
-            c.chasing_team                                                          AS team,
-            (CASE WHEN c.chasing_team = m.team1 THEN m.team1_score
-                  ELSE m.team2_score END)::INT                                      AS score,
-            COALESCE(CASE WHEN c.chasing_team = m.team1 THEN m.team1_wickets
-                          ELSE m.team2_wickets END, 0)::INT                         AS wickets,
-            CASE WHEN c.chasing_team = m.team1 THEN m.team2 ELSE m.team1 END       AS opponent,
-            ((CASE WHEN c.chasing_team = m.team1 THEN m.team2_score
-                   ELSE m.team1_score END) + 1)::INT                                AS target,
-            m.venue,
-            m.season
-        FROM matches m
-        JOIN chasing c ON m.match_id = c.match_id
-        WHERE {season_filter} {tf}
-          AND m.match_won_by = c.chasing_team
+            team,
+            runs_scored::INT AS score,
+            wickets_lost::INT AS wickets,
+            opponent,
+            target_to_win::INT AS target,
+            venue,
+            season
+        FROM team_match_results
+        WHERE chasing
+          AND successful_chase
+          AND {season_filter} {tf}
         ORDER BY score DESC
         LIMIT {limit}
     """)
@@ -605,7 +581,7 @@ def _expensive_overs(season_range=DEFAULT_SEASON_RANGE, team=None, limit=20):
                b.batting_team                              AS vs_team,
                b.over                                      AS over_num,
                b.innings,
-               SUM(b.runs_batter)::INT                     AS runs_conceded,
+               SUM(b.runs_bowler)::INT                     AS runs_conceded,
                COUNT(CASE WHEN b.is_four THEN 1 END)::INT  AS fours,
                COUNT(CASE WHEN b.is_six  THEN 1 END)::INT  AS sixes,
                b.season,

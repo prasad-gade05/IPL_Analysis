@@ -78,6 +78,127 @@ class TestImports:
         assert df.iloc[0]["team"] == "Chennai Super Kings"
         assert int(df.iloc[0]["season"]) == 2025
 
+    def test_matches_view_resolves_super_over_winner(self):
+        from src.db.connection import query
+
+        df = query(
+            """
+            SELECT match_id, team1, match_won_by, batting_first_won
+            FROM matches
+            WHERE match_id = 392190
+            """
+        )
+        assert df.iloc[0]["team1"] == "Rajasthan Royals"
+        assert df.iloc[0]["match_won_by"] == "Rajasthan Royals"
+        assert bool(df.iloc[0]["batting_first_won"]) is True
+
+    def test_completed_team_innings_excludes_partial_no_result_chase(self):
+        from src.db.connection import query
+
+        df = query(
+            """
+            SELECT innings, innings_complete
+            FROM completed_team_innings
+            WHERE match_id = 829813
+            ORDER BY innings
+            """
+        )
+        assert bool(df.iloc[0]["innings_complete"]) is True
+        assert bool(df.iloc[1]["innings_complete"]) is False
+
+    def test_completed_team_innings_keeps_finished_early_successful_chase(self):
+        from src.db.connection import query
+
+        df = query(
+            """
+            SELECT innings_complete, score, target_to_win
+            FROM completed_team_innings
+            WHERE match_id = 335984 AND innings = 2
+            """
+        )
+        assert bool(df.iloc[0]["innings_complete"]) is True
+        assert int(df.iloc[0]["score"]) >= int(df.iloc[0]["target_to_win"])
+
+    def test_successful_chases_are_true_target_chases(self):
+        from src.db.connection import query
+
+        df = query(
+            """
+            SELECT COUNT(*) AS invalid_rows
+            FROM team_match_results
+            WHERE successful_chase
+              AND (target_to_win IS NULL OR runs_scored < target_to_win)
+            """
+        )
+        assert int(df.iloc[0]["invalid_rows"]) == 0
+
+    def test_runtime_player_views_exclude_super_over_innings(self):
+        from src.db.connection import query
+
+        df = query(
+            """
+            SELECT
+                (SELECT COUNT(*) FROM player_batting WHERE innings > 2) AS batting_rows,
+                (SELECT COUNT(*) FROM player_bowling WHERE innings > 2) AS bowling_rows,
+                (SELECT COUNT(*) FROM powerplay WHERE innings > 2) AS powerplay_rows,
+                (SELECT COUNT(*) FROM over_summary WHERE innings > 2) AS over_rows
+            """
+        )
+        row = df.iloc[0]
+        assert int(row["batting_rows"]) == 0
+        assert int(row["bowling_rows"]) == 0
+        assert int(row["powerplay_rows"]) == 0
+        assert int(row["over_rows"]) == 0
+
+    def test_matchups_use_bowler_credited_dismissals(self):
+        from src.db.connection import query
+
+        df = query(
+            """
+            SELECT
+                (SELECT COALESCE(SUM(dismissals), 0) FROM matchups) AS matchup_dismissals,
+                (
+                    SELECT COALESCE(
+                        SUM(
+                            CASE
+                                WHEN innings IN (1, 2)
+                                     AND player_out = batter
+                                     AND bowler_wicket
+                                    THEN 1
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    )
+                    FROM balls
+                ) AS expected_dismissals
+            """
+        )
+        assert int(df.iloc[0]["matchup_dismissals"]) == int(df.iloc[0]["expected_dismissals"])
+
+    def test_matchups_leave_zero_denominator_rates_null(self):
+        from src.db.connection import query
+
+        df = query(
+            """
+            SELECT
+                SUM(CASE WHEN dismissals = 0 AND average IS NOT NULL THEN 1 ELSE 0 END) AS bad_average_rows,
+                SUM(CASE WHEN balls = 0 AND strike_rate IS NOT NULL THEN 1 ELSE 0 END) AS bad_sr_rows,
+                SUM(CASE WHEN balls = 0 AND dot_pct IS NOT NULL THEN 1 ELSE 0 END) AS bad_dot_rows,
+                SUM(CASE WHEN balls = 0 AND boundary_pct IS NOT NULL THEN 1 ELSE 0 END) AS bad_boundary_rows
+            FROM matchups
+            """
+        )
+        row = df.iloc[0]
+        assert int(row["bad_average_rows"]) == 0
+        assert int(row["bad_sr_rows"]) == 0
+        assert int(row["bad_dot_rows"]) == 0
+        assert int(row["bad_boundary_rows"]) == 0
+
+    def test_leaderboard_expensive_overs_uses_bowler_runs(self):
+        source = (PROJECT_ROOT / "pages" / "02_Leaderboards.py").read_text(encoding="utf-8")
+        assert "SUM(b.runs_bowler)::INT                     AS runs_conceded" in source
+
 
 class TestConstants:
     """Validate constant definitions."""
