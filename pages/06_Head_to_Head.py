@@ -133,6 +133,24 @@ def load_top_wicket_takers(team_a, team_b, limit=10):
     )
 
 
+def _h2h_top_scorers_spec() -> VisualSpec:
+    return VisualSpec(
+        id="h2h_top_scorers",
+        title="Top Run Scorers in this Rivalry",
+        controls=[limit_control(default=10, minimum=5, maximum=25)],
+        empty_state_help="No batting data available for this rivalry.",
+    )
+
+
+def _h2h_top_wicket_takers_spec() -> VisualSpec:
+    return VisualSpec(
+        id="h2h_top_wicket_takers",
+        title="Top Wicket Takers in this Rivalry",
+        controls=[limit_control(default=10, minimum=5, maximum=25)],
+        empty_state_help="No bowling data available for this rivalry.",
+    )
+
+
 # ─── Mode selector ───────────────────────────────────────────────────────────
 
 mode = st.radio("Select Mode", ["Batter vs Bowler", "Team vs Team"],

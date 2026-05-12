@@ -1,10 +1,15 @@
-"""DuckDB connection singleton for the IPL Analytics Platform."""
+"""DuckDB query helpers for the IPL Analytics Platform."""
 
-import duckdb
-import streamlit as st
+from __future__ import annotations
+
+import logging
+from functools import lru_cache
 from pathlib import Path
 
+import duckdb
+
 DATA_DIR = Path(__file__).parent.parent.parent / "Data" / "processed"
+LOGGER = logging.getLogger(__name__)
 
 PARQUET_VIEWS = {
     "balls": "ball_by_ball.parquet",
@@ -29,33 +34,54 @@ PARQUET_VIEWS = {
 }
 
 
-@st.cache_resource
 def get_connection():
-    """Return a singleton DuckDB connection with all parquet views registered."""
+    """Return a fresh DuckDB connection with all parquet views registered."""
     conn = duckdb.connect()
+    for statement in _view_statements():
+        conn.execute(statement)
+    return conn
 
-    missing = []
+
+def query(sql: str, params: list = None):
+    """Execute a SQL query against a fresh DuckDB connection."""
+    normalized_params = tuple(params) if params is not None else None
+    last_error: duckdb.Error | None = None
+
+    for attempt in range(1, 3):
+        conn = get_connection()
+        try:
+            if normalized_params is None:
+                return conn.execute(sql).df()
+            return conn.execute(sql, normalized_params).df()
+        except duckdb.Error as exc:
+            last_error = exc
+            LOGGER.exception("DuckDB query failed on attempt %s/2", attempt)
+        finally:
+            conn.close()
+
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("DuckDB query failed without raising a DuckDB error.")
+
+
+@lru_cache(maxsize=1)
+def _view_statements() -> tuple[str, ...]:
+    """Build view registration SQL once and log missing parquet files once."""
+    statements: list[str] = []
+    missing: list[str] = []
+
     for view_name, filename in PARQUET_VIEWS.items():
         filepath = DATA_DIR / filename
         if filepath.exists():
-            conn.execute(
-                f"CREATE VIEW IF NOT EXISTS {view_name} AS SELECT * FROM '{filepath}'"
+            statements.append(
+                f"CREATE VIEW {view_name} AS SELECT * FROM '{filepath}'"
             )
         else:
             missing.append(f"{view_name} -> {filepath}")
 
     if missing:
-        import logging
-        logging.warning(
+        LOGGER.warning(
             "Missing parquet files (views not created):\n  " + "\n  ".join(missing)
         )
 
-    return conn
-
-
-def query(sql: str, params: list = None):
-    """Execute a SQL query and return a pandas DataFrame."""
-    conn = get_connection()
-    if params:
-        return conn.execute(sql, params).df()
-    return conn.execute(sql).df()
+    return tuple(statements)

@@ -3,6 +3,9 @@ Tests for the IPL Analytics Platform.
 Run with: pytest tests/ -v
 """
 
+import ast
+import re
+
 import pytest
 from pathlib import Path
 
@@ -67,6 +70,13 @@ class TestImports:
         assert len(SUPPORTED_EXAMPLES) >= 10
         result = run_semantic_query("Who has the most 49s?")
         assert result["supported"] is True
+
+    def test_query_supports_parameterized_sql(self):
+        from src.db.connection import query
+
+        df = query("SELECT ? AS team, ? AS season", ["Chennai Super Kings", 2025])
+        assert df.iloc[0]["team"] == "Chennai Super Kings"
+        assert int(df.iloc[0]["season"]) == 2025
 
 
 class TestConstants:
@@ -407,3 +417,20 @@ class TestSemanticQueries:
         assert int(df.iloc[0]["Streak Length"]) == 9
         assert int(df.iloc[0]["From Season"]) == 2024
         assert int(df.iloc[0]["To Season"]) == 2025
+
+
+class TestPageReliability:
+    """Catch page-local helper regressions before deployment."""
+
+    def test_called_spec_helpers_are_defined_in_page_modules(self):
+        for path in (PROJECT_ROOT / "pages").glob("*.py"):
+            source = path.read_text(encoding="utf-8")
+            tree = ast.parse(source, filename=str(path))
+            defined = {
+                node.name
+                for node in ast.walk(tree)
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            }
+            called = set(re.findall(r"(_[A-Za-z0-9_]+_spec)\(", source))
+            missing = sorted(name for name in called if name not in defined)
+            assert not missing, f"{path.name} missing spec helpers: {', '.join(missing)}"

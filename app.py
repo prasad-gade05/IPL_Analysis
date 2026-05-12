@@ -5,7 +5,14 @@ Entry point for the Streamlit multi-page application.
 Defines all pages and renders a horizontal top navigation bar.
 """
 
+import logging
+import sys
+
 import streamlit as st
+
+LOGGER = logging.getLogger(__name__)
+MIN_SUPPORTED_PYTHON = (3, 11)
+MAX_SUPPORTED_PYTHON_EXCLUSIVE = (3, 14)
 
 st.set_page_config(
     page_title="IPL Analytics Platform",
@@ -93,6 +100,16 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+if not (MIN_SUPPORTED_PYTHON <= sys.version_info < MAX_SUPPORTED_PYTHON_EXCLUSIVE):
+    current_version = ".".join(str(part) for part in sys.version_info[:3])
+    st.error(
+        "This deployment is running Python "
+        f"{current_version}. DuckDB-backed pages must run on Python 3.11-3.13 "
+        "for this app. On Streamlit Community Cloud, set the Python version in "
+        "the deployment Advanced settings and redeploy."
+    )
+    st.stop()
+
 # --- Define all pages ---
 home = st.Page("pages/00_Home.py", title="Home", default=True)
 season_hub = st.Page("pages/01_Season_Hub.py", title="Season Hub")
@@ -130,7 +147,14 @@ for row_start in range(0, len(ALL_PAGES), ROW_SIZE):
 st.divider()
 
 # --- Run the selected page ---
-pg.run()
+try:
+    pg.run()
+except Exception:
+    LOGGER.exception("Failed to render the selected Streamlit page")
+    st.error(
+        "This page could not be loaded right now. The app is still available, "
+        "and the failure has been logged."
+    )
 
 # --- Footer (visible on ALL pages) ---
 st.markdown("---")

@@ -688,6 +688,54 @@ def get_lowest_totals_defended(team, limit=5):
     )
 
 
+# ---- Visual specs ----
+
+
+def _top_run_scorers_spec() -> VisualSpec:
+    return VisualSpec(
+        id="team_profile_top_run_scorers",
+        title="Top Run Scorers",
+        controls=[limit_control(default=10, minimum=5, maximum=25)],
+        empty_state_help="No batting data available for the selected team.",
+    )
+
+
+def _highest_totals_spec() -> VisualSpec:
+    return VisualSpec(
+        id="team_profile_highest_totals",
+        title="Highest Team Totals",
+        controls=[limit_control(default=10, minimum=5, maximum=25)],
+        empty_state_help="No high-score matches are available for the selected team.",
+    )
+
+
+def _lowest_totals_spec() -> VisualSpec:
+    return VisualSpec(
+        id="team_profile_lowest_totals",
+        title="Lowest Team Totals",
+        controls=[limit_control(default=10, minimum=5, maximum=25)],
+        empty_state_help="No low-score matches are available for the selected team.",
+    )
+
+
+def _top_wicket_takers_spec() -> VisualSpec:
+    return VisualSpec(
+        id="team_profile_top_wicket_takers",
+        title="Top Wicket Takers",
+        controls=[limit_control(default=10, minimum=5, maximum=25)],
+        empty_state_help="No bowling data available for the selected team.",
+    )
+
+
+def _best_bowling_spec() -> VisualSpec:
+    return VisualSpec(
+        id="team_profile_best_bowling",
+        title="Best Bowling Figures",
+        controls=[limit_control(default=10, minimum=5, maximum=25)],
+        empty_state_help="No bowling figures are available for the selected team.",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Page header & team selector
 # ---------------------------------------------------------------------------

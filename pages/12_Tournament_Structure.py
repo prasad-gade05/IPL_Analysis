@@ -280,7 +280,7 @@ fig_timeline.update_layout(
     xaxis=dict(dtick=1),
 )
 apply_ipl_style(fig_timeline, height=420)
-st.plotly_chart(fig_timeline, use_container_width=True)
+st.plotly_chart(fig_timeline, width="stretch")
 
 
 # ══════════════════════════════════════════════
@@ -310,7 +310,7 @@ else:
         {"NRR": "{:+.3f}", "Pos": "{:.0f}", "P": "{:.0f}",
          "W": "{:.0f}", "L": "{:.0f}", "NR": "{:.0f}", "Pts": "{:.0f}"}
     )
-    st.dataframe(styled_pts, use_container_width=True, hide_index=True, height=420)
+    st.dataframe(styled_pts, width="stretch", hide_index=True, height=420)
 
     # NRR horizontal bar chart
     st.subheader("Net Run Rate")
@@ -334,7 +334,7 @@ else:
                    zerolinecolor="rgba(255,255,255,0.3)", zerolinewidth=1),
     )
     apply_ipl_style(fig_nrr, height=max(350, len(pts) * 38), show_legend=False)
-    st.plotly_chart(fig_nrr, use_container_width=True)
+    st.plotly_chart(fig_nrr, width="stretch")
 
 
 # ══════════════════════════════════════════════
@@ -400,7 +400,7 @@ else:
                                "team2_score", "team2_wickets", "match_won_by"]].copy()
         po_display.columns = ["Stage", "Team 1", "Team 2", "T1 Score", "T1 Wkts",
                                "T2 Score", "T2 Wkts", "Winner"]
-        st.dataframe(po_display, use_container_width=True, hide_index=True)
+        st.dataframe(po_display, width="stretch", hide_index=True)
 
 
 # ══════════════════════════════════════════════
@@ -449,7 +449,7 @@ else:
         return [""] * len(row)
 
     styled_comp = table_df.style.apply(_highlight_selected, axis=1)
-    st.dataframe(styled_comp, use_container_width=True, hide_index=True, height=450)
+    st.dataframe(styled_comp, width="stretch", hide_index=True, height=450)
 
     # Two charts side by side
     col_a, col_b = st.columns(2)
@@ -466,7 +466,7 @@ else:
             filtered_meta, x="season", y="duration_days",
             title="Duration (days) per Season", height=400,
         )
-        st.plotly_chart(fig_dur, use_container_width=True)
+        st.plotly_chart(fig_dur, width="stretch")
 
     with col_b:
         st.subheader("Competitiveness Index")
@@ -477,7 +477,7 @@ else:
                 ci, x="season", y="win_pct_std",
                 title="Std Dev of Win% (lower = more competitive)", height=400,
             )
-            st.plotly_chart(fig_ci, use_container_width=True)
+            st.plotly_chart(fig_ci, width="stretch")
         else:
             st.info("Not enough data for competitiveness index.")
 
@@ -507,7 +507,7 @@ else:
             yaxis=dict(title="", autorange="reversed"),
         )
         apply_ipl_style(fig_hm, height=max(500, len(pivot) * 24), show_legend=False)
-        st.plotly_chart(fig_hm, use_container_width=True)
+        st.plotly_chart(fig_hm, width="stretch")
     else:
         st.info("No venue data available for heatmap.")
 
@@ -532,7 +532,7 @@ else:
         height=420,
     )
     fig_vd.update_layout(xaxis_tickangle=-45)
-    st.plotly_chart(fig_vd, use_container_width=True)
+    st.plotly_chart(fig_vd, width="stretch")
 
     # Team × Venue matrix (home-away approximation)
     st.subheader(f"Team × Venue Matrix — {selected_season}")
@@ -562,6 +562,6 @@ else:
             height=max(450, len(pivot_tv) * 36),
             show_legend=False,
         )
-        st.plotly_chart(fig_tv, use_container_width=True)
+        st.plotly_chart(fig_tv, width="stretch")
     else:
         st.info("No team-venue data available.")
