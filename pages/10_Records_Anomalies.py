@@ -514,7 +514,7 @@ def _lowest_team_totals(
                venue                                     AS Venue,
                season                                    AS Season
         FROM completed_team_innings
-        WHERE innings_complete
+        WHERE low_total_record_eligible
           AND score > 0
           AND season BETWEEN {start} AND {end}
         ORDER BY Score ASC

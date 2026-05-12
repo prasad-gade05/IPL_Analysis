@@ -216,6 +216,38 @@ class TestImports:
         assert int(completed.iloc[0]["c"]) > 0
         assert int(team_results.iloc[0]["c"]) > 0
 
+    def test_low_total_records_exclude_short_reduced_over_chases(self):
+        from src.db.connection import query
+
+        df = query(
+            """
+            SELECT team, score, wickets, season
+            FROM completed_team_innings
+            WHERE low_total_record_eligible
+            ORDER BY score ASC
+            LIMIT 5
+            """
+        )
+
+        first_row = df.iloc[0]
+        assert first_row["team"] == "Royal Challengers Bengaluru"
+        assert int(first_row["score"]) == 49
+        assert int(first_row["wickets"]) == 10
+        assert int(first_row["season"]) == 2017
+
+        excluded = query(
+            """
+            SELECT COUNT(*) AS c
+            FROM completed_team_innings
+            WHERE low_total_record_eligible
+              AND team = 'Sunrisers Hyderabad'
+              AND score = 44
+              AND wickets = 2
+              AND season = 2014
+            """
+        )
+        assert int(excluded.iloc[0]["c"]) == 0
+
 
 class TestConstants:
     """Validate constant definitions."""

@@ -350,7 +350,7 @@ PRESET_CATEGORIES: dict[str, dict[str, dict]] = {
                        team AS Team, score AS Score, wickets AS Wkts,
                        opponent AS Opponent, match_won_by AS Winner
                 FROM completed_team_innings
-                WHERE innings_complete AND score > 0
+                WHERE low_total_record_eligible AND score > 0
                 ORDER BY score ASC LIMIT 20
             """, "chart": "none", "x": "", "y": "",
         },

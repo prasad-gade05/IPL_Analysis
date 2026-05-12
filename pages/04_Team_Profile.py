@@ -218,7 +218,7 @@ def get_lowest_team_totals(team, limit=10):
         """
         SELECT match_id, season, venue, opponent, score, wickets, match_won_by
         FROM completed_team_innings
-        WHERE innings_complete
+        WHERE low_total_record_eligible
           AND team = ?
           AND score IS NOT NULL
         ORDER BY score ASC
@@ -367,7 +367,7 @@ def get_lowest_team_totals(team, limit=10):
         """
         SELECT score, wickets, season, opponent
         FROM completed_team_innings
-        WHERE innings_complete
+        WHERE low_total_record_eligible
           AND team = ?
           AND score IS NOT NULL
         ORDER BY score ASC

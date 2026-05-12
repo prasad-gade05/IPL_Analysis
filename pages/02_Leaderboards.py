@@ -486,7 +486,7 @@ def _lowest_totals(season_range=DEFAULT_SEASON_RANGE, team=None, limit=15):
                venue,
                season
         FROM completed_team_innings
-        WHERE innings_complete
+        WHERE low_total_record_eligible
           AND score > 0
           AND {season_filter} {tf}
         ORDER BY score ASC

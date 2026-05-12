@@ -552,73 +552,81 @@ def _derived_view_statements() -> tuple[str, ...]:
         """,
         """
         CREATE VIEW completed_team_innings AS
+        WITH innings_base AS (
+            SELECT
+                match_id,
+                date,
+                season,
+                venue,
+                city,
+                stage,
+                result_type,
+                method,
+                is_super_over_match,
+                is_close_match,
+                toss_winner,
+                toss_decision,
+                match_won_by,
+                win_margin_value,
+                win_margin_type,
+                batting_first_won,
+                1 AS innings,
+                team1 AS team,
+                team2 AS opponent,
+                CAST(team1_score AS INTEGER) AS score,
+                COALESCE(CAST(team1_wickets AS INTEGER), 0) AS wickets,
+                COALESCE(CAST(team1_balls AS INTEGER), 0) AS balls,
+                CAST(NULL AS DOUBLE) AS target_to_win,
+                CASE
+                    WHEN team1_score IS NULL THEN FALSE
+                    WHEN COALESCE(team1_wickets, 0) >= 10 THEN TRUE
+                    WHEN COALESCE(team1_balls, 0) >= 120 THEN TRUE
+                    WHEN COALESCE(team2_balls, 0) > 0 THEN TRUE
+                    ELSE FALSE
+                END AS innings_complete
+            FROM matches
+            UNION ALL
+            SELECT
+                match_id,
+                date,
+                season,
+                venue,
+                city,
+                stage,
+                result_type,
+                method,
+                is_super_over_match,
+                is_close_match,
+                toss_winner,
+                toss_decision,
+                match_won_by,
+                win_margin_value,
+                win_margin_type,
+                batting_first_won,
+                2 AS innings,
+                team2 AS team,
+                team1 AS opponent,
+                CAST(team2_score AS INTEGER) AS score,
+                COALESCE(CAST(team2_wickets AS INTEGER), 0) AS wickets,
+                COALESCE(CAST(team2_balls AS INTEGER), 0) AS balls,
+                CAST(actual_chase_target AS DOUBLE) AS target_to_win,
+                CASE
+                    WHEN COALESCE(team2_balls, 0) = 0 THEN FALSE
+                    WHEN result_type = 'tie' THEN TRUE
+                    WHEN match_won_by IS NOT NULL THEN TRUE
+                    WHEN COALESCE(team2_wickets, 0) >= 10 THEN TRUE
+                    WHEN COALESCE(team2_balls, 0) >= 120 THEN TRUE
+                    WHEN actual_chase_target IS NOT NULL AND team2_score >= actual_chase_target THEN TRUE
+                    ELSE FALSE
+                END AS innings_complete
+            FROM matches
+        )
         SELECT
-            match_id,
-            date,
-            season,
-            venue,
-            city,
-            stage,
-            result_type,
-            method,
-            is_super_over_match,
-            is_close_match,
-            toss_winner,
-            toss_decision,
-            match_won_by,
-            win_margin_value,
-            win_margin_type,
-            batting_first_won,
-            1 AS innings,
-            team1 AS team,
-            team2 AS opponent,
-            CAST(team1_score AS INTEGER) AS score,
-            COALESCE(CAST(team1_wickets AS INTEGER), 0) AS wickets,
-            COALESCE(CAST(team1_balls AS INTEGER), 0) AS balls,
-            CAST(NULL AS DOUBLE) AS target_to_win,
-            CASE
-                WHEN team1_score IS NULL THEN FALSE
-                WHEN COALESCE(team1_wickets, 0) >= 10 THEN TRUE
-                WHEN COALESCE(team1_balls, 0) >= 120 THEN TRUE
-                WHEN COALESCE(team2_balls, 0) > 0 THEN TRUE
-                ELSE FALSE
-            END AS innings_complete
-        FROM matches
-        UNION ALL
-        SELECT
-            match_id,
-            date,
-            season,
-            venue,
-            city,
-            stage,
-            result_type,
-            method,
-            is_super_over_match,
-            is_close_match,
-            toss_winner,
-            toss_decision,
-            match_won_by,
-            win_margin_value,
-            win_margin_type,
-            batting_first_won,
-            2 AS innings,
-            team2 AS team,
-            team1 AS opponent,
-            CAST(team2_score AS INTEGER) AS score,
-            COALESCE(CAST(team2_wickets AS INTEGER), 0) AS wickets,
-            COALESCE(CAST(team2_balls AS INTEGER), 0) AS balls,
-            CAST(actual_chase_target AS DOUBLE) AS target_to_win,
-            CASE
-                WHEN COALESCE(team2_balls, 0) = 0 THEN FALSE
-                WHEN result_type = 'tie' THEN TRUE
-                WHEN match_won_by IS NOT NULL THEN TRUE
-                WHEN COALESCE(team2_wickets, 0) >= 10 THEN TRUE
-                WHEN COALESCE(team2_balls, 0) >= 120 THEN TRUE
-                WHEN actual_chase_target IS NOT NULL AND team2_score >= actual_chase_target THEN TRUE
-                ELSE FALSE
-            END AS innings_complete
-        FROM matches
+            *,
+            innings_complete
+                AND result_type != 'no result'
+                AND (wickets >= 8 OR balls >= 120) AS low_total_record_eligible
+        FROM innings_base
         """,
         """
         CREATE VIEW team_match_results AS
