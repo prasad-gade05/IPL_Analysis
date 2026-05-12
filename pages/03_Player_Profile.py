@@ -86,6 +86,25 @@ def get_batting_summary(player):
 
 
 @st.cache_data(ttl=3600)
+def get_player_match_count(player):
+    return query(
+        """
+        SELECT COUNT(DISTINCT match_id) AS matches
+        FROM (
+            SELECT match_id
+            FROM player_batting
+            WHERE batter = ?
+            UNION
+            SELECT match_id
+            FROM player_bowling
+            WHERE bowler = ?
+        ) appearances
+        """,
+        [player, player],
+    ).iloc[0]["matches"]
+
+
+@st.cache_data(ttl=3600)
 def get_bowling_summary(player):
     return query("""
         SELECT
@@ -528,6 +547,7 @@ teams = get_player_teams(player)
 span = get_career_span(player)
 bat_summary = get_batting_summary(player)
 bowl_summary = get_bowling_summary(player)
+match_count = get_player_match_count(player)
 
 is_bowler = bowl_summary["balls"] > 0
 
@@ -539,7 +559,7 @@ st.markdown(f"{team_tags}  --  Career: **{career}**")
 
 # 8 metric cards
 c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8)
-c1.metric("Matches", format_number(bat_summary["matches"]))
+c1.metric("Matches", format_number(match_count))
 c2.metric("Runs", format_number(bat_summary["runs"]))
 c3.metric("Bat Avg", format_average(bat_summary["avg"]))
 c4.metric("Strike Rate", format_strike_rate(bat_summary["sr"]))

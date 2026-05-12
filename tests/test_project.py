@@ -248,6 +248,42 @@ class TestImports:
         )
         assert int(excluded.iloc[0]["c"]) == 0
 
+    def test_head_to_head_match_query_includes_result_type(self):
+        source = (PROJECT_ROOT / "pages" / "06_Head_to_Head.py").read_text(encoding="utf-8")
+        assert "win_margin_value, win_margin_type, stage, result_type" in source
+
+    def test_pressure_chase_bucket_label_matches_bucket_logic(self):
+        source = (PROJECT_ROOT / "pages" / "08_Pressure_Momentum.py").read_text(encoding="utf-8")
+        assert "WHEN target <= 120 THEN '≤120'" in source
+
+    def test_player_profile_matches_include_bowling_only_appearances(self):
+        from src.db.connection import query
+
+        df = query(
+            """
+            WITH batting AS (
+                SELECT COUNT(DISTINCT match_id) AS matches
+                FROM player_batting
+                WHERE batter = 'YS Chahal'
+            ),
+            combined AS (
+                SELECT COUNT(DISTINCT match_id) AS matches
+                FROM (
+                    SELECT match_id FROM player_batting WHERE batter = 'YS Chahal'
+                    UNION
+                    SELECT match_id FROM player_bowling WHERE bowler = 'YS Chahal'
+                ) appearances
+            )
+            SELECT batting.matches AS batting_matches, combined.matches AS combined_matches
+            FROM batting, combined
+            """
+        )
+
+        assert int(df.iloc[0]["combined_matches"]) > int(df.iloc[0]["batting_matches"])
+
+        source = (PROJECT_ROOT / "pages" / "03_Player_Profile.py").read_text(encoding="utf-8")
+        assert "get_player_match_count(player)" in source
+
 
 class TestConstants:
     """Validate constant definitions."""

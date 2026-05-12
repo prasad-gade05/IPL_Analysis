@@ -345,7 +345,7 @@ def _chase_success_by_target(
                    AND target_to_win IS NOT NULL
         )
         SELECT CASE
-                 WHEN target <= 120 THEN '100-120'
+                 WHEN target <= 120 THEN '≤120'
                  WHEN target <= 140 THEN '121-140'
                  WHEN target <= 160 THEN '141-160'
                  WHEN target <= 180 THEN '161-180'

@@ -82,7 +82,7 @@ def load_h2h_matches(team_a, team_b):
                team1, team1_score, team1_wickets,
                team2, team2_score, team2_wickets,
                match_won_by, toss_winner, toss_decision,
-               win_margin_value, win_margin_type, stage
+               win_margin_value, win_margin_type, stage, result_type
         FROM matches
         WHERE (team1 = ? AND team2 = ?) OR (team1 = ? AND team2 = ?)
         ORDER BY date
