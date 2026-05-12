@@ -46,6 +46,20 @@ RUNTIME_REBUILT_VIEWS = {
     "venues",
 }
 
+NON_RETRYABLE_QUERY_ERRORS = (
+    duckdb.BinderException,
+    duckdb.CatalogException,
+    duckdb.ConversionException,
+    duckdb.InvalidInputException,
+    duckdb.InvalidTypeException,
+    duckdb.NotImplementedException,
+    duckdb.OutOfRangeException,
+    duckdb.ParserException,
+    duckdb.PermissionException,
+    duckdb.SyntaxException,
+    duckdb.TypeMismatchException,
+)
+
 
 def get_connection():
     """Return a fresh DuckDB connection with all parquet views registered."""
@@ -69,7 +83,6 @@ def get_connection():
 def query(sql: str, params: list = None):
     """Execute a SQL query against a fresh DuckDB connection."""
     normalized_params = tuple(params) if params is not None else None
-    last_error: duckdb.Error | None = None
 
     for attempt in range(1, 3):
         conn = get_connection()
@@ -78,13 +91,16 @@ def query(sql: str, params: list = None):
                 return conn.execute(sql).df()
             return conn.execute(sql, normalized_params).df()
         except duckdb.Error as exc:
-            last_error = exc
+            if isinstance(exc, NON_RETRYABLE_QUERY_ERRORS):
+                LOGGER.exception("DuckDB query failed with non-retryable SQL error")
+                raise
+
             LOGGER.exception("DuckDB query failed on attempt %s/2", attempt)
+            if attempt == 2:
+                raise
         finally:
             conn.close()
 
-    if last_error is not None:
-        raise last_error
     raise RuntimeError("DuckDB query failed without raising a DuckDB error.")
 
 

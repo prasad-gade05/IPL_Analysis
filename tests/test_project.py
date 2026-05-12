@@ -5,9 +5,11 @@ Run with: pytest tests/ -v
 
 import ast
 import re
-
-import pytest
 from pathlib import Path
+
+import duckdb
+import pandas as pd
+import pytest
 
 PROJECT_ROOT = Path(__file__).parent.parent
 DATA_RAW = PROJECT_ROOT / "Data" / "raw"
@@ -78,6 +80,62 @@ class TestImports:
         assert df.iloc[0]["team"] == "Chennai Super Kings"
         assert int(df.iloc[0]["season"]) == 2025
 
+    def test_query_does_not_retry_non_retryable_sql_errors(self, monkeypatch):
+        from src.db import connection
+
+        calls = {"get_connection": 0, "close": 0}
+
+        class FakeConnection:
+            def execute(self, sql, params=None):
+                raise duckdb.BinderException("broken sql")
+
+            def close(self):
+                calls["close"] += 1
+
+        def fake_get_connection():
+            calls["get_connection"] += 1
+            return FakeConnection()
+
+        monkeypatch.setattr(connection, "get_connection", fake_get_connection)
+
+        with pytest.raises(duckdb.BinderException):
+            connection.query("SELECT nope")
+
+        assert calls["get_connection"] == 1
+        assert calls["close"] == 1
+
+    def test_query_retries_retryable_duckdb_errors_once(self, monkeypatch):
+        from src.db import connection
+
+        calls = {"get_connection": 0, "execute": 0, "close": 0}
+
+        class FakeResult:
+            def df(self):
+                return pd.DataFrame([{"value": 1}])
+
+        class FakeConnection:
+            def execute(self, sql, params=None):
+                calls["execute"] += 1
+                if calls["execute"] == 1:
+                    raise duckdb.ConnectionException("temporary connection issue")
+                return FakeResult()
+
+            def close(self):
+                calls["close"] += 1
+
+        def fake_get_connection():
+            calls["get_connection"] += 1
+            return FakeConnection()
+
+        monkeypatch.setattr(connection, "get_connection", fake_get_connection)
+
+        df = connection.query("SELECT 1 AS value")
+
+        assert int(df.iloc[0]["value"]) == 1
+        assert calls["get_connection"] == 2
+        assert calls["execute"] == 2
+        assert calls["close"] == 2
+
     def test_matches_view_resolves_super_over_winner(self):
         from src.db.connection import query
 
@@ -131,6 +189,44 @@ class TestImports:
             """
         )
         assert int(df.iloc[0]["invalid_rows"]) == 0
+
+    def test_records_page_team_result_queries_execute_with_plain_season_filter(self):
+        from src.db.connection import query
+
+        highest_chases = query(
+            """
+            SELECT team,
+                   runs_scored::INT AS score,
+                   wickets_lost::INT AS wickets,
+                   opponent,
+                   target_to_win::INT AS target,
+                   venue,
+                   season
+            FROM team_match_results
+            WHERE successful_chase
+              AND season BETWEEN 2008 AND 2025
+            ORDER BY score DESC
+            LIMIT 5
+            """
+        )
+        lowest_defenses = query(
+            """
+            SELECT team,
+                   runs_scored::INT AS score,
+                   opponent,
+                   win_margin_value::INT AS margin,
+                   venue,
+                   season
+            FROM team_match_results
+            WHERE successful_defense
+              AND season BETWEEN 2008 AND 2025
+            ORDER BY score ASC
+            LIMIT 5
+            """
+        )
+
+        assert not highest_chases.empty
+        assert not lowest_defenses.empty
 
     def test_runtime_player_views_exclude_super_over_innings(self):
         from src.db.connection import query
@@ -255,6 +351,43 @@ class TestImports:
     def test_pressure_chase_bucket_label_matches_bucket_logic(self):
         source = (PROJECT_ROOT / "pages" / "08_Pressure_Momentum.py").read_text(encoding="utf-8")
         assert "WHEN target <= 120 THEN '≤120'" in source
+
+    def test_records_page_visual_render_has_error_boundary(self):
+        source = (PROJECT_ROOT / "pages" / "10_Records_Anomalies.py").read_text(encoding="utf-8")
+        tree = ast.parse(source)
+
+        render_fn = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef) and node.name == "_render_record_visual"
+        )
+        try_nodes = [node for node in ast.walk(render_fn) if isinstance(node, ast.Try)]
+        assert try_nodes, "_render_record_visual should guard fetch/render failures"
+
+        st_calls = {
+            node.func.attr
+            for node in ast.walk(render_fn)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "st"
+        }
+        assert "error" in st_calls
+
+        except_returns = [
+            node
+            for handler in try_nodes[0].handlers
+            for node in ast.walk(handler)
+            if isinstance(node, ast.Return)
+        ]
+        assert any(
+            isinstance(ret.value, ast.Call)
+            and isinstance(ret.value.func, ast.Attribute)
+            and isinstance(ret.value.func.value, ast.Name)
+            and ret.value.func.value.id == "pd"
+            and ret.value.func.attr == "DataFrame"
+            for ret in except_returns
+        )
 
     def test_player_profile_matches_include_bowling_only_appearances(self):
         from src.db.connection import query

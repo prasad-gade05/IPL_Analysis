@@ -2,6 +2,8 @@
 Records & Anomalies — The complete IPL record book.
 """
 
+import logging
+
 import pandas as pd
 import streamlit as st
 
@@ -18,6 +20,7 @@ st.caption("The complete IPL record book — every milestone, extreme and anomal
 st.markdown(big_number_style(), unsafe_allow_html=True)
 
 DEFAULT_SEASON_RANGE = (min(ALL_SEASONS), max(ALL_SEASONS))
+LOGGER = logging.getLogger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -607,7 +610,7 @@ def _highest_successful_chases(
     season_range: tuple[int, int] = DEFAULT_SEASON_RANGE,
     limit: int = 15,
 ) -> pd.DataFrame:
-    season_filter = _season_condition("m.season", season_range)
+    season_filter = _season_condition("season", season_range)
     limit = _sanitize_limit(limit, 15)
     return query(
         f"""
@@ -632,7 +635,7 @@ def _lowest_totals_defended(
     season_range: tuple[int, int] = DEFAULT_SEASON_RANGE,
     limit: int = 15,
 ) -> pd.DataFrame:
-    season_filter = _season_condition("m.season", season_range)
+    season_filter = _season_condition("season", season_range)
     limit = _sanitize_limit(limit, 15)
     return query(
         f"""
@@ -1286,13 +1289,21 @@ def _render_record_visual(
     st.markdown(f"#### {spec.title}")
     control_values = render_visual_controls(spec)
     render_active_filters(active_control_chips(spec, control_values))
-    df = fetcher(control_values)
+    try:
+        df = fetcher(control_values)
 
-    if chart_x and chart_y:
-        render_bar_chart(df, x=chart_x, y=chart_y, title=chart_title or spec.title, height=chart_height)
+        if chart_x and chart_y:
+            render_bar_chart(df, x=chart_x, y=chart_y, title=chart_title or spec.title, height=chart_height)
 
-    render_dataframe(df, spec.empty_state_help)
-    return df
+        render_dataframe(df, spec.empty_state_help)
+        return df
+    except Exception as exc:
+        LOGGER.exception("Failed to render records visual '%s'", spec.id)
+        st.error(f"Could not load {spec.title}.")
+        st.caption("This card failed, but the rest of the page is still available.")
+        with st.expander("Error details"):
+            st.code(f"{type(exc).__name__}: {exc}")
+        return pd.DataFrame()
 
 
 # ═══════════════════════════════════════════════════════════════════════
