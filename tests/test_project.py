@@ -199,6 +199,23 @@ class TestImports:
         source = (PROJECT_ROOT / "pages" / "02_Leaderboards.py").read_text(encoding="utf-8")
         assert "SUM(b.runs_bowler)::INT                     AS runs_conceded" in source
 
+    def test_runtime_cricket_views_register_on_fresh_connection(self):
+        from src.db.connection import get_connection
+
+        conn = get_connection()
+        try:
+            completed = conn.execute(
+                "SELECT COUNT(*) AS c FROM completed_team_innings WHERE innings_complete"
+            ).df()
+            team_results = conn.execute(
+                "SELECT COUNT(*) AS c FROM team_match_results WHERE innings_complete"
+            ).df()
+        finally:
+            conn.close()
+
+        assert int(completed.iloc[0]["c"]) > 0
+        assert int(team_results.iloc[0]["c"]) > 0
+
 
 class TestConstants:
     """Validate constant definitions."""
