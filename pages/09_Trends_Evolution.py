@@ -1,5 +1,5 @@
 """
-Trends & Evolution — How IPL cricket has changed from 2008 to 2025.
+Trends & Evolution — How IPL cricket has changed from 2008 to 2026.
 """
 
 import streamlit as st
@@ -306,7 +306,7 @@ def _match_dynamics(season_range: tuple[int, int] = DEFAULT_SEASON_RANGE):
 st.markdown(big_number_style(), unsafe_allow_html=True)
 st.title("Trends & Evolution")
 st.caption(
-    "How IPL cricket has evolved from 2008 to 2025 — scoring, batting, "
+    "How IPL cricket has evolved from 2008 to 2026 — scoring, batting, "
     "bowling, strategy, and match dynamics"
 )
 

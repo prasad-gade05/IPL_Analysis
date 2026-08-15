@@ -1,5 +1,5 @@
 ---
-pretty_name: "IPL Dataset 2008-2025 (Enriched for ML)"
+pretty_name: "IPL Dataset 2008-2026 (Enriched for ML)"
 language:
   - en
 license: cc0-1.0
@@ -24,7 +24,7 @@ size_categories:
 
 # Dataset Summary
 
-This dataset is an enriched version of the **IPL Dataset 2008-2025**.  
+This dataset is an enriched version of the **IPL Dataset 2008-2026**.  
 It starts from the original Kaggle data and adds analytics-driven, derived attributes to improve usefulness for machine learning and advanced data analysis workflows.
 
 # Modifications & Derived Attributes
@@ -69,7 +69,7 @@ The published dataset is stored in **`.parquet`** format for efficient loading a
 from datasets import load_dataset
 
 # From Hugging Face Hub
-ds = load_dataset("prasad-gade05/ipl-enriched-2008-2025")
+ds = load_dataset("prasad-gade05/ipl-enriched-dataset")
 
 # Optional: load local parquet files directly
 # ds = load_dataset("parquet", data_files={"train": "path/to/data.parquet"})
@@ -89,7 +89,7 @@ This dataset can be used for:
 
 Original base dataset:
 
-- **Name:** IPL Dataset 2008-2025
+- **Name:** IPL Dataset (2008-2026)
 - **Source:** Kaggle
 - **Creator:** **chaitu20**
 - **URL:** https://www.kaggle.com/datasets/chaitu20/ipl-dataset2008-2025

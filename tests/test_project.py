@@ -20,7 +20,7 @@ class TestProjectStructure:
     """Verify the project directory is set up correctly."""
 
     def test_raw_data_exists(self):
-        assert (DATA_RAW / "ipl_ball_by_ball.csv").exists(), "Raw CSV not found"
+        assert (DATA_RAW / "IPL.csv").exists(), "Raw CSV not found"
 
     def test_directories_exist(self):
         assert (PROJECT_ROOT / "src").is_dir()
@@ -49,7 +49,7 @@ class TestImports:
         from src.utils.constants import TEAM_COLORS, PHASE_COLORS, ALL_SEASONS
         assert len(TEAM_COLORS) > 0
         assert len(PHASE_COLORS) == 3
-        assert len(ALL_SEASONS) == 18
+        assert len(ALL_SEASONS) == 19
 
     def test_import_formatters(self):
         from src.utils.formatters import format_number, format_strike_rate, format_overs
@@ -76,9 +76,9 @@ class TestImports:
     def test_query_supports_parameterized_sql(self):
         from src.db.connection import query
 
-        df = query("SELECT ? AS team, ? AS season", ["Chennai Super Kings", 2025])
+        df = query("SELECT ? AS team, ? AS season", ["Chennai Super Kings", 2026])
         assert df.iloc[0]["team"] == "Chennai Super Kings"
-        assert int(df.iloc[0]["season"]) == 2025
+        assert int(df.iloc[0]["season"]) == 2026
 
     def test_query_does_not_retry_non_retryable_sql_errors(self, monkeypatch):
         from src.db import connection
@@ -204,7 +204,7 @@ class TestImports:
                    season
             FROM team_match_results
             WHERE successful_chase
-              AND season BETWEEN 2008 AND 2025
+              AND season BETWEEN 2008 AND 2026
             ORDER BY score DESC
             LIMIT 5
             """
@@ -219,7 +219,7 @@ class TestImports:
                    season
             FROM team_match_results
             WHERE successful_defense
-              AND season BETWEEN 2008 AND 2025
+              AND season BETWEEN 2008 AND 2026
             ORDER BY score ASC
             LIMIT 5
             """
@@ -488,7 +488,7 @@ class TestParquetData:
     def test_ball_by_ball_shape(self):
         import pandas as pd
         bb = pd.read_parquet(DATA_PROCESSED / "ball_by_ball.parquet")
-        assert bb.shape[0] == 278205, f"Expected 278205 rows, got {bb.shape[0]}"
+        assert bb.shape[0] == 295732, f"Expected 295732 rows, got {bb.shape[0]}"
         assert bb.shape[1] >= 85, f"Expected 85+ cols, got {bb.shape[1]}"
 
     def test_no_unknown_stages(self):
@@ -501,8 +501,8 @@ class TestParquetData:
         bb = pd.read_parquet(DATA_PROCESSED / "ball_by_ball.parquet", columns=["season"])
         seasons = sorted(bb["season"].unique())
         assert seasons[0] == 2008
-        assert seasons[-1] == 2025
-        assert len(seasons) == 18
+        assert seasons[-1] == 2026
+        assert len(seasons) == 19
 
     def test_overs_are_1_indexed(self):
         import pandas as pd
@@ -541,7 +541,7 @@ class TestParquetData:
     def test_season_structure_champions(self):
         import pandas as pd
         ss = pd.read_parquet(DATA_PROCESSED / "season_structure.parquet")
-        assert ss.shape[0] == 18, "Should have 18 seasons"
+        assert ss.shape[0] == 19, "Should have 19 seasons"
         assert ss["champion"].notna().all(), "Every season should have a champion"
 
     def test_team_match_results_shape(self):
@@ -611,7 +611,7 @@ class TestSemanticQueries:
         assert result["supported"] is True
         shubman = df[df["Player"] == "Shubman Gill"]
         assert not shubman.empty
-        assert int(shubman.iloc[0]["Streak Length"]) == 6
+        assert int(shubman.iloc[0]["Streak Length"]) == 7
 
     def test_most_hat_tricks(self):
         from src.semantic import run_semantic_query
@@ -641,7 +641,7 @@ class TestSemanticQueries:
         result = run_semantic_query("Which bowlers have the most maidens?")
         df = result["data"]
         assert result["supported"] is True
-        assert int(df["Maidens"].max()) == 14
+        assert int(df["Maidens"].max()) == 15
 
     def test_most_ducks(self):
         from src.semantic import run_semantic_query
@@ -736,7 +736,7 @@ class TestSemanticQueries:
         df = result["data"]
         assert result["supported"] is True
         assert df.iloc[0]["Player"] == "RG Sharma"
-        assert int(df.iloc[0]["Caught Dismissals"]) == 168
+        assert int(df.iloc[0]["Caught Dismissals"]) == 174
 
     def test_bowler_dismissal_type(self):
         from src.semantic import run_semantic_query
@@ -744,7 +744,7 @@ class TestSemanticQueries:
         df = result["data"]
         assert result["supported"] is True
         assert df.iloc[0]["Player"] == "Rashid Khan"
-        assert int(df.iloc[0]["LBWs"]) == 37
+        assert int(df.iloc[0]["LBWs"]) == 39
 
     def test_year_for_prompt_does_not_match_four_fors(self):
         from src.semantic import run_semantic_query

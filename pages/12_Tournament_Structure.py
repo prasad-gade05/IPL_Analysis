@@ -188,8 +188,8 @@ if not available_seasons:
     st.stop()
 
 default_idx = 0
-if 2025 in available_seasons:
-    default_idx = available_seasons.index(2025)
+if 2026 in available_seasons:
+    default_idx = available_seasons.index(2026)
 
 selected_season = st.selectbox(
     "Select Season",

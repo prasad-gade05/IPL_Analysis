@@ -30,7 +30,7 @@ Pipeline entry point: `Data\preprocessing\run_pipeline.py`
 
 Output after cleaning:
 
-- `ball_by_ball_cleaned.parquet`: **278,205 rows x 63 columns**
+- `ball_by_ball_cleaned.parquet`: **295,732 rows x 63 columns**
 
 ### Step 2 - `02_derive_features.py`
 
@@ -43,7 +43,7 @@ Output after cleaning:
 
 Output after feature engineering:
 
-- `ball_by_ball.parquet`: **278,205 rows x 90 columns**
+- `ball_by_ball.parquet`: **295,732 rows x 90 columns**
 
 ### Step 3 - `03_build_aggregates.py`
 
@@ -51,24 +51,24 @@ This stage produces the app-facing analytical datasets:
 
 | Output file | Rows | Purpose |
 | --- | ---: | --- |
-| `match_summary.parquet` | 1,169 | One row per match |
-| `player_season.parquet` | 3,138 | Player-team-season roster mapping |
-| `matchups.parquet` | 29,533 | Batter vs bowler aggregates |
+| `match_summary.parquet` | 1,243 | One row per match |
+| `player_season.parquet` | 3,340 | Player-team-season roster mapping |
+| `matchups.parquet` | 31,370 | Batter vs bowler aggregates |
 | `venue_stats.parquet` | 42 | Venue scoring and result summaries |
-| `powerplay_stats.parquet` | 2,365 | Powerplay innings summaries |
+| `powerplay_stats.parquet` | 2,480 | Powerplay innings summaries |
 | `dot_sequences.parquet` | 34 | Outcomes after dot-ball streaks |
-| `season_structure.parquet` | 18 | Season-level metadata |
-| `player_batting_match.parquet` | 17,708 | Per-innings batting cards |
-| `player_bowling_match.parquet` | 13,878 | Per-innings bowling cards |
-| `partnerships.parquet` | 15,696 | Partnership-level summaries |
-| `dismissal_patterns.parquet` | 2,089 | Dismissal types by player |
-| `dismissal_by_phase.parquet` | 3,446 | Dismissal types by player and phase |
-| `team_season.parquet` | 156 | Team-by-season results |
-| `points_table.parquet` | 156 | Points table with NRR |
-| `team_match_results.parquet` | 2,338 | Team result row per match |
-| `over_summary.parquet` | 45,034 | Over-level innings summaries |
-| `innings_tags.parquet` | 17,708 | Innings-level tags for semantic filtering |
-| `player_season_metrics.parquet` | 3,137 | Player-season batting and bowling summary metrics |
+| `season_structure.parquet` | 19 | Season-level metadata |
+| `player_batting_match.parquet` | 18,768 | Per-innings batting cards |
+| `player_bowling_match.parquet` | 14,700 | Per-innings bowling cards |
+| `partnerships.parquet` | 16,693 | Partnership-level summaries |
+| `dismissal_patterns.parquet` | 2,184 | Dismissal types by player |
+| `dismissal_by_phase.parquet` | 3,587 | Dismissal types by player and phase |
+| `team_season.parquet` | 166 | Team-by-season results |
+| `points_table.parquet` | 166 | Points table with NRR |
+| `team_match_results.parquet` | 2,486 | Team result row per match |
+| `over_summary.parquet` | 47,806 | Over-level innings summaries |
+| `innings_tags.parquet` | 18,768 | Innings-level tags for semantic filtering |
+| `player_season_metrics.parquet` | 3,339 | Player-season batting and bowling summary metrics |
 
 That is **18 app-facing aggregate parquet files**, plus the feature parquet `ball_by_ball.parquet`.
 
@@ -85,8 +85,8 @@ Several cricket-specific rules are enforced because the same mistakes were easy 
 
 The codebase also keeps verified aggregate consistency checks for:
 
-- **703 batters** with zero mismatches between aggregate and ball-level batting totals
-- **550 bowlers** with zero mismatches between aggregate and ball-level bowling totals
+- **738 batters** with zero mismatches between aggregate and ball-level batting totals
+- **577 bowlers** with zero mismatches between aggregate and ball-level bowling totals
 
 ## 4. DuckDB query layer
 
@@ -96,25 +96,25 @@ On app startup the project registers **19 parquet-backed DuckDB views**:
 
 | View | Source parquet | Rows |
 | --- | --- | ---: |
-| `balls` | `ball_by_ball.parquet` | 278,205 |
-| `matches` | `match_summary.parquet` | 1,169 |
-| `player_season` | `player_season.parquet` | 3,138 |
-| `player_batting` | `player_batting_match.parquet` | 17,708 |
-| `player_bowling` | `player_bowling_match.parquet` | 13,878 |
-| `team_match_results` | `team_match_results.parquet` | 2,338 |
-| `over_summary` | `over_summary.parquet` | 45,034 |
-| `innings_tags` | `innings_tags.parquet` | 17,708 |
-| `player_season_metrics` | `player_season_metrics.parquet` | 3,137 |
-| `matchups` | `matchups.parquet` | 29,533 |
+| `balls` | `ball_by_ball.parquet` | 295,732 |
+| `matches` | `match_summary.parquet` | 1,243 |
+| `player_season` | `player_season.parquet` | 3,340 |
+| `player_batting` | `player_batting_match.parquet` | 18,768 |
+| `player_bowling` | `player_bowling_match.parquet` | 14,700 |
+| `team_match_results` | `team_match_results.parquet` | 2,486 |
+| `over_summary` | `over_summary.parquet` | 47,806 |
+| `innings_tags` | `innings_tags.parquet` | 18,768 |
+| `player_season_metrics` | `player_season_metrics.parquet` | 3,339 |
+| `matchups` | `matchups.parquet` | 31,370 |
 | `venues` | `venue_stats.parquet` | 42 |
-| `partnerships` | `partnerships.parquet` | 15,696 |
+| `partnerships` | `partnerships.parquet` | 16,693 |
 | `dot_sequences` | `dot_sequences.parquet` | 34 |
-| `powerplay` | `powerplay_stats.parquet` | 2,365 |
-| `season_meta` | `season_structure.parquet` | 18 |
-| `dismissals` | `dismissal_patterns.parquet` | 2,089 |
-| `dismissals_phase` | `dismissal_by_phase.parquet` | 3,446 |
-| `team_season` | `team_season.parquet` | 156 |
-| `points_table` | `points_table.parquet` | 156 |
+| `powerplay` | `powerplay_stats.parquet` | 2,480 |
+| `season_meta` | `season_structure.parquet` | 19 |
+| `dismissals` | `dismissal_patterns.parquet` | 2,184 |
+| `dismissals_phase` | `dismissal_by_phase.parquet` | 3,587 |
+| `team_season` | `team_season.parquet` | 166 |
+| `points_table` | `points_table.parquet` | 166 |
 
 Every page query and every semantic query runs against these views.
 
@@ -261,7 +261,7 @@ Test file: `tests\test_project.py`
 Current repository result:
 
 - `python -m pytest tests\ --tb=short -q`
-- **52 passed**
+- **71 passed**
 
 Coverage in the suite includes:
 

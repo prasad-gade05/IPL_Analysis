@@ -19,7 +19,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
     menu_items={
-        "About": "# IPL Analytics Platform\n18 Seasons | 1200+ Matches | 700+ Players | 40+ Venues",
+        "About": "# IPL Analytics Platform\n19 Seasons | 1200+ Matches | 700+ Players | 35+ Venues",
     },
 )
 

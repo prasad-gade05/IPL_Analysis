@@ -16,7 +16,7 @@ def get_dot_ball_outcomes(min_consecutive=1):
     )
 
 
-def get_chase_success_by_target_range(season_range=(2008, 2025)):
+def get_chase_success_by_target_range(season_range=(2008, 2026)):
     """Chase success rate bucketed by target range."""
     return query(
         """

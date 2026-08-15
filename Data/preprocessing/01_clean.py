@@ -2,7 +2,7 @@
 IPL Analytics — Step 1: Data Cleaning
 Reads raw CSV, applies 10 cleaning steps, outputs cleaned parquet.
 
-Input:  data/raw/ipl_ball_by_ball.csv  (278,205 rows × 64 columns)
+Input:  data/raw/IPL.csv  (295,732 rows × 64 columns, seasons 2008-2026)
 Output: data/processed/ball_by_ball_cleaned.parquet
 """
 
@@ -11,7 +11,7 @@ import numpy as np
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-RAW_CSV = PROJECT_ROOT / "Data" / "raw" / "ipl_ball_by_ball.csv"
+RAW_CSV = PROJECT_ROOT / "Data" / "raw" / "IPL.csv"
 OUTPUT = PROJECT_ROOT / "Data" / "processed" / "ball_by_ball_cleaned.parquet"
 
 # ── Constants ────────────────────────────────────────────────────────────────
@@ -19,6 +19,7 @@ OUTPUT = PROJECT_ROOT / "Data" / "processed" / "ball_by_ball_cleaned.parquet"
 COLUMNS_TO_DROP = [
     "Unnamed: 0", "match_type", "event_name", "gender",
     "team_type", "balls_per_over", "overs", "match_number",
+    "power_surge_start",
 ]
 
 SEASON_MAP = {
@@ -27,6 +28,7 @@ SEASON_MAP = {
     "2015": 2015, "2016": 2016, "2017": 2017, "2018": 2018,
     "2019": 2019, "2020/21": 2020, "2021": 2021,
     "2022": 2022, "2023": 2023, "2024": 2024, "2025": 2025,
+    "2026": 2026,
 }
 
 TEAM_NAME_MAP = {
@@ -79,6 +81,8 @@ VENUE_MAP = {
     "Bharat Ratna Shri Atal Bihari Vajpayee Ekana Cricket Stadium, Lucknow": "Ekana Cricket Stadium",
     # Barsapara
     "Barsapara Cricket Stadium, Guwahati": "Barsapara Cricket Stadium",
+    # Raipur
+    "Shaheed Veer Narayan Singh International Stadium, Raipur": "Shaheed Veer Narayan Singh International Stadium",
     # Mullanpur / New Chandigarh
     "Maharaja Yadavindra Singh International Cricket Stadium, Mullanpur": "Maharaja Yadavindra Singh International Cricket Stadium",
     "Maharaja Yadavindra Singh International Cricket Stadium, New Chandigarh": "Maharaja Yadavindra Singh International Cricket Stadium",
@@ -99,8 +103,20 @@ def step_01_drop_constants(df: pd.DataFrame) -> pd.DataFrame:
 
 def step_02_fix_dtypes(df: pd.DataFrame) -> pd.DataFrame:
     """Fix data types: date, season, over index, booleans, numerics."""
-    # Date
-    df["date"] = pd.to_datetime(df["date"], format="%d-%m-%Y", errors="coerce")
+    # Date. The raw export changed format across releases:
+    #   <=2025 export: DD-MM-YYYY, 2026 export: YYYY-MM-DD.
+    # Parse the new format first and fall back to the legacy one.
+    df["date"] = pd.to_datetime(df["date"], format="%Y-%m-%d", errors="coerce")
+    legacy_mask = df["date"].isna()
+    if legacy_mask.any():
+        df.loc[legacy_mask, "date"] = pd.to_datetime(
+            df.loc[legacy_mask, "date"], format="%d-%m-%Y", errors="coerce"
+        )
+    if df["date"].isna().any():
+        raise ValueError(
+            f"{df['date'].isna().sum()} dates could not be parsed "
+            "as YYYY-MM-DD or DD-MM-YYYY"
+        )
 
     # Season: string -> standardized int
     df["season"] = df["season"].astype(str).map(SEASON_MAP).astype("int16")
@@ -114,12 +130,23 @@ def step_02_fix_dtypes(df: pd.DataFrame) -> pd.DataFrame:
     # Innings
     df["innings"] = df["innings"].astype("int8")
 
-    # Booleans
+    # Booleans. valid_ball / striker_out arrive as 0/1 ints in the 2026
+    # export and as bools in older exports; astype(bool) is correct for both.
     for col in ["valid_ball", "striker_out"]:
         if col in df.columns:
             df[col] = df[col].astype(bool)
     if "umpires_call" in df.columns:
         df["umpires_call"] = df["umpires_call"].fillna(False).astype(bool)
+
+    # batting_partners switched from "('A', 'B')" tuple-strings to "A|B"
+    # pipe-strings in the 2026 export. Normalize back to the legacy
+    # tuple-string form so the published dataset schema stays stable.
+    if "batting_partners" in df.columns:
+        partners = df["batting_partners"].astype("string")
+        is_pipe = partners.str.contains("|", regex=False).fillna(False)
+        df.loc[is_pipe, "batting_partners"] = (
+            "('" + partners[is_pipe].str.split("|").str.join("', '") + "')"
+        )
 
     # Downcast numeric columns
     int_cols = [

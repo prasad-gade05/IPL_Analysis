@@ -912,7 +912,7 @@ st.title("Match Center")
 sel_col1, sel_col2 = st.columns([1, 3])
 
 with sel_col1:
-    default_idx = ALL_SEASONS.index(2025) if 2025 in ALL_SEASONS else len(ALL_SEASONS) - 1
+    default_idx = ALL_SEASONS.index(2026) if 2026 in ALL_SEASONS else len(ALL_SEASONS) - 1
     season = st.selectbox("Season", ALL_SEASONS, index=default_idx, key="mc_season")
 
 matches_df = load_season_matches(int(season))

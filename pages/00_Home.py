@@ -32,7 +32,7 @@ def init_session_state():
         "selected_season": None,
         "selected_batter": None,
         "selected_bowler": None,
-        "season_range": (2008, 2025),
+        "season_range": (2008, 2026),
         "comparison_player": None,
         "comparison_team": None,
         "comparison_venue": None,
@@ -259,8 +259,8 @@ def main():
         </h1>
         <p style='text-align:center; font-size:1.15rem; color:#AAAAAA;
                   margin-top:4px; margin-bottom:28px;'>
-            <b>18 Seasons</b> &nbsp;|&nbsp; <b>1,200+ Matches</b> &nbsp;|&nbsp;
-            <b>700+ Players</b> &nbsp;|&nbsp; <b>40+ Venues</b><br/>
+            <b>19 Seasons</b> &nbsp;|&nbsp; <b>1,240+ Matches</b> &nbsp;|&nbsp;
+            <b>700+ Players</b> &nbsp;|&nbsp; <b>35+ Venues</b><br/>
             <em>Every stat. Every matchup. Every record. One platform.</em>
         </p>
     """, unsafe_allow_html=True)
@@ -271,7 +271,7 @@ def main():
         season_range = st.slider(
             "Season Range",
             min_value=2008,
-            max_value=2025,
+            max_value=2026,
             value=st.session_state["season_range"],
             key="global_season_range",
         )

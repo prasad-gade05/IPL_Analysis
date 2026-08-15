@@ -6,7 +6,7 @@ from src.db.connection import query
 
 def season_range_filter(key_prefix=""):
     """Render a season range slider and return the tuple."""
-    return st.session_state.get("season_range", (2008, 2025))
+    return st.session_state.get("season_range", (2008, 2026))
 
 
 def team_filter(key="team_filter", label="Select Team", include_all=True):

@@ -1463,7 +1463,7 @@ with main_tab_semantic:
 with main_tab_guide:
     st.subheader("How to Use the Explorer")
     st.markdown("""
-Welcome to the **Explorer** — your all-access pass to querying 18 seasons of IPL data across **278,000+ ball-by-ball records**, **1,200+ matches**, and **700+ players**.
+Welcome to the **Explorer** — your all-access pass to querying 19 seasons of IPL data across **295,000+ ball-by-ball records**, **1,240+ matches**, and **700+ players**.
 
 This tool gives you two ways to explore:
 """)

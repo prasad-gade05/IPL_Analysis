@@ -4,9 +4,9 @@
 
 > **Note:** The app is hosted on Streamlit's free tier. If it says the app is sleeping, wake it and wait a few seconds.
 
-> **18 Seasons | 1,169 Matches | 15 Pages | 19 DuckDB Views**
+> **19 Seasons | 1,243 Matches | 15 Pages | 19 DuckDB Views**
 
-An IPL analytics app built with **Streamlit + DuckDB + Parquet + Plotly** over ball-by-ball data from 2008-2025.
+An IPL analytics app built with **Streamlit + DuckDB + Parquet + Plotly** over ball-by-ball data from 2008-2026.
 
 For the architecture and pipeline details, see **[TECHNICAL.md](TECHNICAL.md)**.
 
@@ -18,7 +18,7 @@ For the architecture and pipeline details, see **[TECHNICAL.md](TECHNICAL.md)**.
 - **58 Explorer presets across 11 categories**
 - **Schema-driven per-visual controls** rolled out across the main analytics pages where local filtering preserves the meaning of the visual
 - **19 parquet-backed DuckDB views**, including helper views added for semantic queries: `team_match_results`, `over_summary`, `innings_tags`, and `player_season_metrics`
-- **52 pytest checks**
+- **71 pytest checks**
 
 ## Accuracy model
 
@@ -54,7 +54,7 @@ pip install -r requirements.txt
 
 # 4. Place raw data
 # Download IPL.csv from Kaggle and place it at:
-#   Data\raw\ipl_ball_by_ball.csv
+#   Data\raw\IPL.csv
 
 # 5. Run preprocessing pipeline
 python Data\preprocessing\run_pipeline.py
@@ -72,7 +72,7 @@ IPL_Analysis/
 |- TECHNICAL.md
 |- Data/
 |  |- raw/
-|  |  \- ipl_ball_by_ball.csv
+|  |  \- IPL.csv
 |  |- processed/
 |  |  |- ball_by_ball.parquet
 |  |  |- match_summary.parquet
@@ -162,10 +162,10 @@ Run the suite with:
 python -m pytest tests\ --tb=short -q
 ```
 
-Current repository result: **52 passed**.
+Current repository result: **71 passed**.
 
 ## Data
 
-Source dataset: [IPL Dataset 2008-2025](https://www.kaggle.com/datasets/chaitu20/ipl-dataset2008-2025) by **chaitu20**.
+Source dataset: [IPL Dataset 2008-2025](https://www.kaggle.com/datasets/chaitu20/ipl-dataset2008-2025) by **chaitu20** (updated in place by its author; the current export covers 2008-2026).
 
 Derived dataset notes: see **[DatasetReadme.md](DatasetReadme.md)**.

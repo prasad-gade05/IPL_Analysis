@@ -3,7 +3,7 @@
 from src.db.connection import query
 
 
-def get_all_time_top_batters(limit=25, min_innings=10, season_range=(2008, 2025)):
+def get_all_time_top_batters(limit=25, min_innings=10, season_range=(2008, 2026)):
     """Top run scorers of all time within season range."""
     return query(
         """
@@ -30,7 +30,7 @@ def get_all_time_top_batters(limit=25, min_innings=10, season_range=(2008, 2025)
     )
 
 
-def get_all_time_top_bowlers(limit=25, min_overs=20, season_range=(2008, 2025)):
+def get_all_time_top_bowlers(limit=25, min_overs=20, season_range=(2008, 2026)):
     """Top wicket takers of all time within season range."""
     return query(
         """
@@ -54,7 +54,7 @@ def get_all_time_top_bowlers(limit=25, min_overs=20, season_range=(2008, 2025)):
     )
 
 
-def get_player_career_batting(player_name, season_range=(2008, 2025)):
+def get_player_career_batting(player_name, season_range=(2008, 2026)):
     """Season-by-season batting stats for a player."""
     return query(
         """

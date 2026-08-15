@@ -3,7 +3,7 @@
 from src.db.connection import query
 
 
-def get_team_all_time_record(season_range=(2008, 2025)):
+def get_team_all_time_record(season_range=(2008, 2026)):
     """All-time win/loss record for every team."""
     return query(
         """
@@ -23,7 +23,7 @@ def get_team_all_time_record(season_range=(2008, 2025)):
     )
 
 
-def get_team_season_stats(team_name, season_range=(2008, 2025)):
+def get_team_season_stats(team_name, season_range=(2008, 2026)):
     """Season-by-season stats for a specific team."""
     return query(
         """
@@ -36,7 +36,7 @@ def get_team_season_stats(team_name, season_range=(2008, 2025)):
     )
 
 
-def get_head_to_head(team1, team2, season_range=(2008, 2025)):
+def get_head_to_head(team1, team2, season_range=(2008, 2026)):
     """Head-to-head record between two teams."""
     return query(
         """
